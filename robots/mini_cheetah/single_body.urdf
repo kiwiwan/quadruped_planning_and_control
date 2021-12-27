@@ -1,0 +1,119 @@
+<?xml version="1.0" ?>
+<robot name="mini_cheetah" xmlns:xacro="http://ros.org/wiki/xacro">
+
+    <material name="black">
+        <color rgba="0.0 0.0 0.0 1.0"/>
+    </material>
+    <material name="grey">
+        <color rgba="0.35 0.35 0.35 1.0"/>
+    </material>
+
+
+    <!--!!!!!!!!!!!!!!!!!!BODY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!-->
+    <link name="body">
+        <inertial>
+            <mass value="3.3"/>
+            <origin xyz="0.0 0.0 0.0"/>
+            <inertia ixx="0.011253" ixy="0" ixz="0" iyy="0.036203" iyz="0" izz="0.042673"/>
+        </inertial>
+        <visual>
+            <geometry>
+                <mesh filename="meshes/mini_body.obj"/>
+            </geometry>
+            <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+            <material name="grey"/>
+        </visual>
+        <collision>
+            <geometry>
+                <box size="0.23 0.19 0.1"/>
+            </geometry>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+        </collision>
+    </link>
+
+    <!-- Add foot links to enable relevent computations, including better collision detection -->
+    <joint name="shank_fl_to_foot_fl" type="fixed">
+        <parent link="body"/>
+        <child link="LF_FOOT"/>
+        <origin rpy="0.19898057 -1.04135571 -0.17231513" xyz="0.25461048  0.13843928 -0.27037497"/>
+    </joint>
+    <link name="LF_FOOT">
+        <collision>
+            <geometry>
+                <sphere radius = "0.0175"/>
+            </geometry>
+            <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+        </collision>
+        <visual>
+            <geometry>
+                <sphere radius = "0.0175"/>
+            </geometry>
+            <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+            <material name="black"/>
+        </visual>
+    </link>
+    
+    <joint name="shank_fr_to_foot_fr" type="fixed">
+        <parent link="body"/>
+        <child link="RF_FOOT"/>
+        <origin rpy="-0.19898057 -1.04135571  0.17231513" xyz="0.25461048 -0.13843928 -0.27037497"/>
+    </joint>
+    <link name="RF_FOOT">
+        <collision>
+            <geometry>
+                <sphere radius = "0.0175"/>
+            </geometry>
+            <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+        </collision>
+        <visual>
+            <geometry>
+                <sphere radius = "0.0175"/>
+            </geometry>
+            <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+            <material name="black"/>
+        </visual>
+    </link>
+    
+    <joint name="shank_hl_to_foot_hl" type="fixed">
+        <parent link="body"/>
+        <child link="LH_FOOT"/>
+        <origin rpy="0.19898057 -1.04135571 -0.17231513" xyz="-0.12538952  0.13843928 -0.27037497"/>
+    </joint>
+    <link name="LH_FOOT">
+        <collision>
+            <geometry>
+                <sphere radius = "0.0175"/>
+            </geometry>
+            <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+        </collision>
+        <visual>
+            <geometry>
+                <sphere radius = "0.0175"/>
+            </geometry>
+            <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+            <material name="black"/>
+        </visual>
+    </link>
+    
+    <joint name="shank_hr_to_foot_hr" type="fixed">
+        <parent link="body"/>
+        <child link="RH_FOOT"/>
+        <origin rpy="-0.19898057 -1.04135571  0.17231513" xyz="-0.12538952 -0.13843928 -0.27037497"/>
+    </joint>
+    <link name="RH_FOOT">
+        <collision>
+            <geometry>
+                <sphere radius = "0.0175"/>
+            </geometry>
+            <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+        </collision>
+        <visual>
+            <geometry>
+                <sphere radius = "0.0175"/>
+            </geometry>
+            <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+            <material name="black"/>
+        </visual>
+    </link>
+
+</robot>
