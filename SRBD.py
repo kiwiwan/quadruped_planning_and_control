@@ -78,26 +78,26 @@ class SRBD(Robot):
             self.speed = 0.9
             self.stride_length = .55
             self.is_laterally_symmetric = True
-        # elif gait == 'walking_trot':
-        #     self.N = 21
-        #     self.in_stance = np.zeros((4, self.N))
-        #     self.in_stance[0, :11] = 1
-        #     self.in_stance[1, 8:self.N] = 1
-        #     self.in_stance[2, 8:self.N] = 1
-        #     self.in_stance[3, :11] = 1
-        #     self.speed = 1.1
-        #     self.stride_length = .55
-        #     self.is_laterally_symmetric = True
         elif gait == 'walking_trot':
-            self.N = 41
+            self.N = 21
             self.in_stance = np.zeros((4, self.N))
-            self.in_stance[0, :21] = 1
-            self.in_stance[1, 16:self.N] = 1
-            self.in_stance[2, 16:self.N] = 1
-            self.in_stance[3, :21] = 1
+            self.in_stance[0, :11] = 1
+            self.in_stance[1, 8:self.N] = 1
+            self.in_stance[2, 8:self.N] = 1
+            self.in_stance[3, :11] = 1
             self.speed = 1.1
             self.stride_length = .55
             self.is_laterally_symmetric = True
+        # elif gait == 'walking_trot':
+        #     self.N = 41
+        #     self.in_stance = np.zeros((4, self.N))
+        #     self.in_stance[0, :21] = 1
+        #     self.in_stance[1, 16:self.N] = 1
+        #     self.in_stance[2, 16:self.N] = 1
+        #     self.in_stance[3, :21] = 1
+        #     self.speed = 1.1
+        #     self.stride_length = .55
+        #     self.is_laterally_symmetric = True
         elif gait == 'rotary_gallop':
             self.N = 41
             self.in_stance = np.zeros((4, self.N))
@@ -208,16 +208,16 @@ class SRBD(Robot):
             prog.AddLinearEqualityConstraint(a[0] == b[-1])
             prog.AddLinearEqualityConstraint(a[-1] == b[0])
 
-        AddAntiSymmetricPair(q_view.torso_to_abduct_fl_j,
-                             q_view.torso_to_abduct_fr_j)
-        AddSymmetricPair(q_view.abduct_fl_to_thigh_fl_j,
-                         q_view.abduct_fr_to_thigh_fr_j)
-        AddSymmetricPair(q_view.thigh_fl_to_knee_fl_j, q_view.thigh_fr_to_knee_fr_j)
-        AddAntiSymmetricPair(q_view.torso_to_abduct_hl_j,
-                             q_view.torso_to_abduct_hr_j)
-        AddSymmetricPair(q_view.abduct_hl_to_thigh_hl_j,
-                         q_view.abduct_hr_to_thigh_hr_j)
-        AddSymmetricPair(q_view.thigh_hl_to_knee_hl_j, q_view.thigh_hr_to_knee_hr_j)
+        # AddAntiSymmetricPair(q_view.torso_to_abduct_fl_j,
+        #                      q_view.torso_to_abduct_fr_j)
+        # AddSymmetricPair(q_view.abduct_fl_to_thigh_fl_j,
+        #                  q_view.abduct_fr_to_thigh_fr_j)
+        # AddSymmetricPair(q_view.thigh_fl_to_knee_fl_j, q_view.thigh_fr_to_knee_fr_j)
+        # AddAntiSymmetricPair(q_view.torso_to_abduct_hl_j,
+        #                      q_view.torso_to_abduct_hr_j)
+        # AddSymmetricPair(q_view.abduct_hl_to_thigh_hl_j,
+        #                  q_view.abduct_hr_to_thigh_hr_j)
+        # AddSymmetricPair(q_view.thigh_hl_to_knee_hl_j, q_view.thigh_hr_to_knee_hr_j)
         prog.AddLinearEqualityConstraint(q_view.body_y[0] == -q_view.body_y[-1])
         prog.AddLinearEqualityConstraint(q_view.body_z[0] == q_view.body_z[-1])
         # Body orientation must be in the xz plane:
@@ -237,20 +237,20 @@ class SRBD(Robot):
         b.body_qx = -a.body_qx
         b.body_qz = -a.body_qz
 
-        b.torso_to_abduct_fl_j = -a.torso_to_abduct_fr_j
-        b.torso_to_abduct_fr_j = -a.torso_to_abduct_fl_j
-        b.torso_to_abduct_hl_j = -a.torso_to_abduct_hr_j
-        b.torso_to_abduct_hr_j = -a.torso_to_abduct_hl_j
+        # b.torso_to_abduct_fl_j = -a.torso_to_abduct_fr_j
+        # b.torso_to_abduct_fr_j = -a.torso_to_abduct_fl_j
+        # b.torso_to_abduct_hl_j = -a.torso_to_abduct_hr_j
+        # b.torso_to_abduct_hr_j = -a.torso_to_abduct_hl_j
 
-        b.abduct_fl_to_thigh_fl_j = a.abduct_fr_to_thigh_fr_j
-        b.abduct_fr_to_thigh_fr_j = a.abduct_fl_to_thigh_fl_j
-        b.abduct_hl_to_thigh_hl_j = a.abduct_hr_to_thigh_hr_j
-        b.abduct_hr_to_thigh_hr_j = a.abduct_hl_to_thigh_hl_j
+        # b.abduct_fl_to_thigh_fl_j = a.abduct_fr_to_thigh_fr_j
+        # b.abduct_fr_to_thigh_fr_j = a.abduct_fl_to_thigh_fl_j
+        # b.abduct_hl_to_thigh_hl_j = a.abduct_hr_to_thigh_hr_j
+        # b.abduct_hr_to_thigh_hr_j = a.abduct_hl_to_thigh_hl_j
 
-        b.thigh_fl_to_knee_fl_j = a.thigh_fr_to_knee_fr_j
-        b.thigh_fr_to_knee_fr_j = a.thigh_fl_to_knee_fl_j
-        b.thigh_hl_to_knee_hl_j = a.thigh_hr_to_knee_hr_j
-        b.thigh_hr_to_knee_hr_j = a.thigh_hl_to_knee_hl_j
+        # b.thigh_fl_to_knee_fl_j = a.thigh_fr_to_knee_fr_j
+        # b.thigh_fr_to_knee_fr_j = a.thigh_fl_to_knee_fl_j
+        # b.thigh_hl_to_knee_hl_j = a.thigh_hr_to_knee_hr_j
+        # b.thigh_hr_to_knee_hr_j = a.thigh_hl_to_knee_hl_j
 
         return b
 

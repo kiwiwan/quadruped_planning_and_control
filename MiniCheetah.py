@@ -77,26 +77,26 @@ class MiniCheetah(Robot):
             self.speed = 0.9
             self.stride_length = .55
             self.is_laterally_symmetric = True
-        # elif gait == 'walking_trot':
-        #     self.N = 21
-        #     self.in_stance = np.zeros((4, self.N))
-        #     self.in_stance[0, :11] = 1
-        #     self.in_stance[1, 8:self.N] = 1
-        #     self.in_stance[2, 8:self.N] = 1
-        #     self.in_stance[3, :11] = 1
-        #     self.speed = 1.1
-        #     self.stride_length = .55
-        #     self.is_laterally_symmetric = True
         elif gait == 'walking_trot':
-            self.N = 41
+            self.N = 21
             self.in_stance = np.zeros((4, self.N))
-            self.in_stance[0, :21] = 1
-            self.in_stance[1, 16:self.N] = 1
-            self.in_stance[2, 16:self.N] = 1
-            self.in_stance[3, :21] = 1
+            self.in_stance[0, :11] = 1
+            self.in_stance[1, 8:self.N] = 1
+            self.in_stance[2, 8:self.N] = 1
+            self.in_stance[3, :11] = 1
             self.speed = 1.1
             self.stride_length = .55
             self.is_laterally_symmetric = True
+        # elif gait == 'walking_trot':
+        #     self.N = 41
+        #     self.in_stance = np.zeros((4, self.N))
+        #     self.in_stance[0, :21] = 1
+        #     self.in_stance[1, 16:self.N] = 1
+        #     self.in_stance[2, 16:self.N] = 1
+        #     self.in_stance[3, :21] = 1
+        #     self.speed = 1.1
+        #     self.stride_length = .55
+        #     self.is_laterally_symmetric = True
         elif gait == 'rotary_gallop':
             self.N = 41
             self.in_stance = np.zeros((4, self.N))
@@ -117,6 +117,7 @@ class MiniCheetah(Robot):
             self.speed = 0.65
             self.stride_length = .65
             self.check_self_collision = True
+            self.is_laterally_symmetric = True
         else:
             raise RuntimeError('Unknown gait.')
 
@@ -129,7 +130,8 @@ class MiniCheetah(Robot):
 
     def set_home(self, plant, context):
         hip_roll = .1;
-        hip_pitch = 1;
+        # hip_pitch = 1;
+        hip_pitch = 0.5;
         knee = 1.55;
         plant.GetJointByName("torso_to_abduct_fr_j").set_angle(context, -hip_roll)
         plant.GetJointByName("abduct_fr_to_thigh_fr_j").set_angle(context, -hip_pitch)

@@ -307,8 +307,8 @@ def gait_optimization(robot_ctor):
 
 
     #set the initial guess
-    # init_from_file = False
-    init_from_file = True
+    init_from_file = False
+    # init_from_file = True
     tmpfolder = 'resources/'
     if init_from_file:
         with open(tmpfolder +  'Planner_Cheetah_QEI/sol.pkl', 'rb' ) as file:
@@ -316,10 +316,10 @@ def gait_optimization(robot_ctor):
 
     qf = np.array(q0)
     qf[4] = stride_length  #x
-    qf[8] = -0.5  #hip-pitch
-    qf[11] = -0.5  #hip-pitch
-    qf[14] = -0.5  #hip-pitch
-    qf[17] = -0.5  #hip-pitch
+    # qf[8] = -0.5  #hip-pitch
+    # qf[11] = -0.5  #hip-pitch
+    # qf[14] = -0.5  #hip-pitch
+    # qf[17] = -0.5  #hip-pitch
 
     # # q0[9] = -1.55  #knee-pitch
     # # q0[12] = -1.55  #knee-pitch
@@ -352,15 +352,15 @@ def gait_optimization(robot_ctor):
         for contact in range(num_contacts):
             prog.SetInitialGuess(normalized_contact_force[contact], normalized_contact_force_sol[contact])
         
-        q_sol[8,N-1] = -0.3  #hip-pitch
-        q_sol[11,N-1] = -0.3  #hip-pitch
-        q_sol[14,N-1] = -0.3  #hip-pitch
-        q_sol[17,N-1] = -0.3  #hip-pitch
-        prog.SetInitialGuess(q[:,N-1], q_sol[:,N-1])
-        prog.AddBoundingBoxConstraint(q_sol[8,N-1], q_sol[8,N-1], q[8,N-1])
-        prog.AddBoundingBoxConstraint(q_sol[11,N-1], q_sol[11,N-1], q[11,N-1])
-        prog.AddBoundingBoxConstraint(q_sol[14,N-1], q_sol[14,N-1], q[14,N-1])
-        prog.AddBoundingBoxConstraint(q_sol[17,N-1], q_sol[17,N-1], q[17,N-1])
+        # q_sol[8,N-1] = 0.2  #hip-pitch
+        # q_sol[11,N-1] = 0.2  #hip-pitch
+        # q_sol[14,N-1] = 0.2  #hip-pitch
+        # q_sol[17,N-1] = 0.2  #hip-pitch
+        # prog.SetInitialGuess(q[:,N-1], q_sol[:,N-1])
+        # prog.AddBoundingBoxConstraint(q_sol[8,N-1], q_sol[8,N-1], q[8,N-1])
+        # prog.AddBoundingBoxConstraint(q_sol[11,N-1], q_sol[11,N-1], q[11,N-1])
+        # prog.AddBoundingBoxConstraint(q_sol[14,N-1], q_sol[14,N-1], q[14,N-1])
+        # prog.AddBoundingBoxConstraint(q_sol[17,N-1], q_sol[17,N-1], q[17,N-1])
     else:
         for n in range(N):
             prog.SetInitialGuess(q[:,n], np.array([np.hstack((Quaternion(q_quat_init.value(n*T/(N-1))).wxyz(), q_pos_init.value(n*T/(N-1)).flatten()))]).T)
@@ -408,6 +408,22 @@ def gait_optimization(robot_ctor):
         with open(tmpfolder + 'Planner_Cheetah_QEI/sol.pkl', 'wb') as file:
             pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
 
+    for n in range(len(h_sol)):
+        plant.SetPositions(plant_context, q_sol[:,n+1])
+        print(n, "   &&&")
+        X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('LF_FOOT'))
+        print(X_WF.translation())
+        X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('RF_FOOT'))
+
+        print(X_WF.translation())
+        X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('LH_FOOT'))
+
+        print(X_WF.translation())
+        X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('RH_FOOT'))
+
+        print(X_WF.translation())
+        print("################")
+
     # Animate trajectory
     context = diagram.CreateDefaultContext()
     plant_context = plant.GetMyContextFromRoot(context)
@@ -438,8 +454,8 @@ def gait_optimization(robot_ctor):
     notify2.init("Planner.py")
     notify2.Notification("Planner.py", "Done").show()
 
-    if not result.is_success():
-        print(result.GetInfeasibleConstraintNames(prog))
+    # if not result.is_success():
+    #     print(result.GetInfeasibleConstraintNames(prog))
         # pdb.set_trace()
 
 # Try them all!  The last two could use a little tuning.
@@ -448,10 +464,10 @@ minicheetah_running_trot = partial(MiniCheetah, gait="running_trot")
 minicheetah_rotary_gallop = partial(MiniCheetah, gait="rotary_gallop")
 minicheetah_bound = partial(MiniCheetah, gait="bound")
 
-# gait_optimization(minicheetah_walking_trot)
+gait_optimization(minicheetah_walking_trot)
 # gait_optimization(minicheetah_running_trot)
 # gait_optimization(minicheetah_rotary_gallop)
-gait_optimization(minicheetah_bound)
+# gait_optimization(minicheetah_bound)
 
 # gait_optimization(partial(Atlas, simplified=True))
 
