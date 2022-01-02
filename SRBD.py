@@ -168,7 +168,7 @@ class SRBD(Robot):
         return "body"
 
     def max_body_rotation(self):
-        return 0.1
+        return 0.1  #0.1
 
     def min_com_height(self):
         return 0.15  #0.125

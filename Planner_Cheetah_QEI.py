@@ -276,6 +276,30 @@ def gait_optimization(robot_ctor):
                 p_WF_n - p_WF, J_WF_n @ ExtractGradient(qn) - J_WF @ ExtractGradient(q))
         else:
             return p_WF_n - p_WF
+
+    # Kinematic constraints
+    def swing_constraint(vars, context_index, frame):
+        q_pre, q, qn = np.split(vars, [nq, nq*2])
+        if not np.array_equal(q_pre, plant.GetPositions(context[context_index-1])):
+            plant.SetPositions(context[context_index-1], q_pre)
+        if not np.array_equal(q, plant.GetPositions(context[context_index])):
+            plant.SetPositions(context[context_index], q)
+        if not np.array_equal(qn, plant.GetPositions(context[context_index+1])):
+            plant.SetPositions(context[context_index+1], qn)
+        p_WF_pre = plant.CalcPointsPositions(context[context_index-1], frame, [0,0,0], plant.world_frame())
+        p_WF = plant.CalcPointsPositions(context[context_index], frame, [0,0,0], plant.world_frame())
+        p_WF_n = plant.CalcPointsPositions(context[context_index+1], frame, [0,0,0], plant.world_frame())
+        if isinstance(vars[0], AutoDiffXd):
+            J_WF_pre = plant.CalcJacobianTranslationalVelocity(context[context_index-1], JacobianWrtVariable.kQDot,
+                                                    frame, [0, 0, 0], plant.world_frame(), plant.world_frame())
+            J_WF = plant.CalcJacobianTranslationalVelocity(context[context_index], JacobianWrtVariable.kQDot,
+                                                    frame, [0, 0, 0], plant.world_frame(), plant.world_frame())
+            J_WF_n = plant.CalcJacobianTranslationalVelocity(context[context_index+1], JacobianWrtVariable.kQDot,
+                                                    frame, [0, 0, 0], plant.world_frame(), plant.world_frame())
+            return InitializeAutoDiff(
+                p_WF - (p_WF_pre + p_WF_n)/2, J_WF @ ExtractGradient(q) - (J_WF_pre @ ExtractGradient(q_pre) + J_WF_n @ ExtractGradient(qn))/2)
+        else:
+            return p_WF - (p_WF_pre + p_WF_n)/2
     for i in range(robot.get_num_contacts()):
         for n in range(N):
             if in_stance[i, n]:
@@ -290,6 +314,11 @@ def gait_optimization(robot_ctor):
             else:
                 min_clearance = 0.01
                 prog.AddConstraint(PositionConstraint(plant, plant.world_frame(), [-np.inf,-np.inf,min_clearance], [np.inf,np.inf,np.inf],contact_frame[i],[0,0,0],context[n]), q[:,n])
+                if n > 0 and n < N - 1 and in_stance[i, n]:
+                    # feet should not move during stance.
+                    prog.AddConstraint(partial(swing_constraint, context_index=n, frame=contact_frame[i]),
+                                       lb=np.zeros(3), ub=np.zeros(3), vars=np.concatenate((q[:,n-1], q[:,n], q[:,n+1])))
+            
 
     # Periodicity constraints
     if is_laterally_symmetric:
@@ -408,21 +437,21 @@ def gait_optimization(robot_ctor):
         with open(tmpfolder + 'Planner_Cheetah_QEI/sol.pkl', 'wb') as file:
             pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
 
-    for n in range(len(h_sol)):
-        plant.SetPositions(plant_context, q_sol[:,n+1])
-        print(n, "   &&&")
-        X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('LF_FOOT'))
-        print(X_WF.translation())
-        X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('RF_FOOT'))
+    # for n in range(len(h_sol)):
+    #     plant.SetPositions(plant_context, q_sol[:,n+1])
+    #     print(n, "   &&&")
+    #     X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('LF_FOOT'))
+    #     print(X_WF.translation())
+    #     X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('RF_FOOT'))
 
-        print(X_WF.translation())
-        X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('LH_FOOT'))
+    #     print(X_WF.translation())
+    #     X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('LH_FOOT'))
 
-        print(X_WF.translation())
-        X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('RH_FOOT'))
+    #     print(X_WF.translation())
+    #     X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('RH_FOOT'))
 
-        print(X_WF.translation())
-        print("################")
+    #     print(X_WF.translation())
+    #     print("################")
 
     # Animate trajectory
     context = diagram.CreateDefaultContext()
@@ -464,8 +493,8 @@ minicheetah_running_trot = partial(MiniCheetah, gait="running_trot")
 minicheetah_rotary_gallop = partial(MiniCheetah, gait="rotary_gallop")
 minicheetah_bound = partial(MiniCheetah, gait="bound")
 
-gait_optimization(minicheetah_walking_trot)
-# gait_optimization(minicheetah_running_trot)
+# gait_optimization(minicheetah_walking_trot)
+gait_optimization(minicheetah_running_trot)
 # gait_optimization(minicheetah_rotary_gallop)
 # gait_optimization(minicheetah_bound)
 

@@ -74,8 +74,8 @@ class MiniCheetah(Robot):
             self.in_stance = np.zeros((4, self.N))
             self.in_stance[1, 3:17] = 1
             self.in_stance[2, 3:17] = 1
-            self.speed = 0.9
-            self.stride_length = .55
+            self.speed = 2.5            #0.95-0.55,1.2-0.75,1.5-0.85,1.5-1.15,1.5-1.65,2.0-1.65,2.5-1.65
+            self.stride_length = 1.65
             self.is_laterally_symmetric = True
         elif gait == 'walking_trot':
             self.N = 21
