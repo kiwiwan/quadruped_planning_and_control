@@ -494,8 +494,8 @@ minicheetah_rotary_gallop = partial(MiniCheetah, gait="rotary_gallop")
 minicheetah_bound = partial(MiniCheetah, gait="bound")
 
 # gait_optimization(minicheetah_walking_trot)
-gait_optimization(minicheetah_running_trot)
-# gait_optimization(minicheetah_rotary_gallop)
+# gait_optimization(minicheetah_running_trot)
+gait_optimization(minicheetah_rotary_gallop)
 # gait_optimization(minicheetah_bound)
 
 # gait_optimization(partial(Atlas, simplified=True))
