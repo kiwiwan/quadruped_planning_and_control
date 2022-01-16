@@ -1,7 +1,7 @@
 import numpy as np
 from pydrake.all import (
         Parser, RigidTransform,
-        HalfSpace, CoulombFriction
+        Box, CoulombFriction
 )
 
 from typing import NamedTuple
@@ -51,13 +51,16 @@ class MiniCheetah(Robot):
 
     def __init__(self, plant, gait="walking_trot", add_ground=False):
         if add_ground:
-            green = np.array([0.5, 1.0, 0.5, 1.0])
+            color = np.array([.9, .9, .9, 1.0])
 
-            plant.RegisterVisualGeometry(plant.world_body(), RigidTransform(), HalfSpace(),
-                    "GroundVisuaGeometry", green)
+            box = Box(30., 30., 1.)
+            X_WBox = RigidTransform([0, 0, -0.5-0.0175])
+
+            plant.RegisterVisualGeometry(plant.world_body(), X_WBox, box,
+                    "GroundVisuaGeometry", color)
 
             ground_friction = CoulombFriction(1.0, 1.0)
-            plant.RegisterCollisionGeometry(plant.world_body(), RigidTransform(), HalfSpace(),
+            plant.RegisterCollisionGeometry(plant.world_body(), X_WBox, box,
                     "GroundCollisionGeometry", ground_friction)
             plant.set_penetration_allowance(1.0e-3)
             plant.set_stiction_tolerance(1.0e-3)
@@ -145,7 +148,7 @@ class MiniCheetah(Robot):
         plant.GetJointByName("torso_to_abduct_hl_j").set_angle(context, hip_roll)
         plant.GetJointByName("abduct_hl_to_thigh_hl_j").set_angle(context, -hip_pitch)
         plant.GetJointByName("thigh_hl_to_knee_hl_j").set_angle(context, knee)
-        plant.SetFreeBodyPose(context, plant.GetBodyByName("body"), RigidTransform([0, 0, 0.24984+0.0175]))  #0.146
+        plant.SetFreeBodyPose(context, plant.GetBodyByName("body"), RigidTransform([0, 0, 0.270375]))  #0.24984  +0.0175
 
     def get_stance_schedule(self):
         return self.in_stance

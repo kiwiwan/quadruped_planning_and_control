@@ -76,9 +76,10 @@ def gait_optimization(robot_ctor):
 
     # Time steps
     h = prog.NewContinuousVariables(N-1, "h")
-    prog.AddBoundingBoxConstraint(0.5*T/N, 2.0*T/N, h)
-    prog.AddLinearConstraint(sum(h) >= .9*T)
-    prog.AddLinearConstraint(sum(h) <= 1.1*T)
+    prog.AddBoundingBoxConstraint(T/N, T/N, h)
+    # prog.AddBoundingBoxConstraint(0.5*T/N, 2.0*T/N, h)
+    # prog.AddLinearConstraint(sum(h) >= .9*T)
+    # prog.AddLinearConstraint(sum(h) <= 1.1*T)
 
     # Create one context per timestep (to maximize cache hits)
     context = [plant.CreateDefaultContext() for i in range(N)]
@@ -297,7 +298,7 @@ def gait_optimization(robot_ctor):
             J_WF_n = plant.CalcJacobianTranslationalVelocity(context[context_index+1], JacobianWrtVariable.kQDot,
                                                     frame, [0, 0, 0], plant.world_frame(), plant.world_frame())
             return InitializeAutoDiff(
-                p_WF - (p_WF_pre + p_WF_n)/2, J_WF @ ExtractGradient(q) - (J_WF_pre @ ExtractGradient(q_pre) + J_WF_n @ ExtractGradient(qn))/2)
+                p_WF - (p_WF_pre + p_WF_n)/2, J_WF @ ExtractGradient(q) - (J_WF_pre @ ExtractGradient(q_pre) + J_WF_n @ ExtractGradient(qn))/2)[:1]
         else:
             return p_WF - (p_WF_pre + p_WF_n)/2
     for i in range(robot.get_num_contacts()):
@@ -314,10 +315,10 @@ def gait_optimization(robot_ctor):
             else:
                 min_clearance = 0.01
                 prog.AddConstraint(PositionConstraint(plant, plant.world_frame(), [-np.inf,-np.inf,min_clearance], [np.inf,np.inf,np.inf],contact_frame[i],[0,0,0],context[n]), q[:,n])
-                if n > 0 and n < N - 1 and in_stance[i, n]:
-                    # feet should not move during stance.
-                    prog.AddConstraint(partial(swing_constraint, context_index=n, frame=contact_frame[i]),
-                                       lb=np.zeros(3), ub=np.zeros(3), vars=np.concatenate((q[:,n-1], q[:,n], q[:,n+1])))
+                # if n > 0 and n < N - 1 and not in_stance[i, n]:
+                #     # feet should not move during stance.
+                #     prog.AddConstraint(partial(swing_constraint, context_index=n, frame=contact_frame[i]),
+                #                        lb=np.zeros(1), ub=np.zeros(1), vars=np.concatenate((q[:,n-1], q[:,n], q[:,n+1])))
             
 
     # Periodicity constraints
