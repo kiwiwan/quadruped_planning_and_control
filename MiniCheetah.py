@@ -69,6 +69,8 @@ class MiniCheetah(Robot):
 
         
 
+        self.gait = gait
+
         # setup gait
         self.is_laterally_symmetric = False
         self.check_self_collision = False
@@ -77,7 +79,7 @@ class MiniCheetah(Robot):
             self.in_stance = np.zeros((4, self.N))
             self.in_stance[1, 3:17] = 1
             self.in_stance[2, 3:17] = 1
-            self.speed = 2.5            #0.95-0.55,1.2-0.75,1.5-0.85,1.5-1.15,1.5-1.65,2.0-1.65,2.5-1.65
+            self.speed = 2.0            #0.95-0.55,1.2-0.75,1.5-0.85,1.5-1.15,1.5-1.65,2.0-1.65,2.5-1.65
             self.stride_length = 1.65
             self.is_laterally_symmetric = True
         elif gait == 'walking_trot':
@@ -107,8 +109,8 @@ class MiniCheetah(Robot):
             self.in_stance[1, 3:15] = 1
             self.in_stance[2, 24:35] = 1
             self.in_stance[3, 26:38] = 1
-            self.speed = 1.6     #1.6-0.75,
-            self.stride_length = 0.75
+            self.speed = 1.8     #1.6-0.75,
+            self.stride_length = 0.65
             self.check_self_collision = True
         elif gait == 'bound':
             self.N = 41
@@ -117,12 +119,15 @@ class MiniCheetah(Robot):
             self.in_stance[1, 6:18] = 1
             self.in_stance[2, 21:32] = 1
             self.in_stance[3, 21:32] = 1
-            self.speed = 2.0        #0.65-0.65,1.65-1.2,2.0-1.65
-            self.stride_length = 1.65
+            self.speed = 1.6        #0.65-0.65,1.65-1.2,2.0-1.65
+            self.stride_length = 0.65
             self.check_self_collision = True
             # self.is_laterally_symmetric = True
         else:
             raise RuntimeError('Unknown gait.')
+
+    def get_current_gait(self):
+        return self.gait
 
     def get_contact_frames(self):
         return [
@@ -148,7 +153,7 @@ class MiniCheetah(Robot):
         plant.GetJointByName("torso_to_abduct_hl_j").set_angle(context, hip_roll)
         plant.GetJointByName("abduct_hl_to_thigh_hl_j").set_angle(context, -hip_pitch)
         plant.GetJointByName("thigh_hl_to_knee_hl_j").set_angle(context, knee)
-        plant.SetFreeBodyPose(context, plant.GetBodyByName("body"), RigidTransform([0, 0, 0.270375]))  #0.24984  +0.0175
+        plant.SetFreeBodyPose(context, plant.GetBodyByName("body"), RigidTransform([0, 0, 0.27]))  #0.24984  +0.0175  0.270375
 
     def get_stance_schedule(self):
         return self.in_stance

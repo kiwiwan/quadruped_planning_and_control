@@ -67,7 +67,7 @@ class SRBD(Robot):
         # super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh.urdf")
         super().__init__(plant, "robots/mini_cheetah/single_body.urdf")
 
-        
+        self.gait = gait
 
         # setup gait
         self.is_laterally_symmetric = False
@@ -77,29 +77,23 @@ class SRBD(Robot):
             self.in_stance = np.zeros((4, self.N))
             self.in_stance[1, 3:17] = 1
             self.in_stance[2, 3:17] = 1
-            self.speed = 1.9
-            self.stride_length = .55
+            # self.speed = 1.9
+            # self.stride_length = .55
+            self.speed = 2.2
+            self.stride_length = 0.65
             self.is_laterally_symmetric = True
         elif gait == 'walking_trot':
             self.N = 21
             self.in_stance = np.zeros((4, self.N))
-            self.in_stance[0, :11] = 1
-            self.in_stance[1, 8:self.N] = 1
-            self.in_stance[2, 8:self.N] = 1
-            self.in_stance[3, :11] = 1
-            self.speed = 1.1
-            self.stride_length = .55
+            self.in_stance[0, 1:11] = 1
+            self.in_stance[1, 8:self.N-1] = 1
+            self.in_stance[2, 8:self.N-1] = 1
+            self.in_stance[3, 1:11] = 1
+            # self.speed = 1.1
+            # self.stride_length = .55
+            self.speed = 2.2
+            self.stride_length = .75
             self.is_laterally_symmetric = True
-        # elif gait == 'walking_trot':
-        #     self.N = 41
-        #     self.in_stance = np.zeros((4, self.N))
-        #     self.in_stance[0, :21] = 1
-        #     self.in_stance[1, 16:self.N] = 1
-        #     self.in_stance[2, 16:self.N] = 1
-        #     self.in_stance[3, :21] = 1
-        #     self.speed = 1.1
-        #     self.stride_length = .55
-        #     self.is_laterally_symmetric = True
         elif gait == 'rotary_gallop':
             self.N = 41
             self.in_stance = np.zeros((4, self.N))
@@ -107,8 +101,10 @@ class SRBD(Robot):
             self.in_stance[1, 3:15] = 1
             self.in_stance[2, 24:35] = 1
             self.in_stance[3, 26:38] = 1
-            self.speed = 1.8
-            self.stride_length = 0.65
+            # self.speed = 1.8
+            # self.stride_length = 0.65
+            self.speed = 2.2
+            self.stride_length = 1.0
             self.check_self_collision = True
         elif gait == 'bound':
             self.N = 41
@@ -117,11 +113,16 @@ class SRBD(Robot):
             self.in_stance[1, 6:18] = 1
             self.in_stance[2, 21:32] = 1
             self.in_stance[3, 21:32] = 1
-            self.speed = 1.6
-            self.stride_length = .65
+            # self.speed = 1.6
+            # self.stride_length = .65
+            self.speed = 2.2
+            self.stride_length = 1.2
             self.check_self_collision = True
         else:
             raise RuntimeError('Unknown gait.')
+
+    def get_current_gait(self):
+        return self.gait
 
     def get_contact_frames(self):
         return [
@@ -146,7 +147,7 @@ class SRBD(Robot):
         # plant.GetJointByName("torso_to_abduct_hl_j").set_angle(context, hip_roll)
         # plant.GetJointByName("abduct_hl_to_thigh_hl_j").set_angle(context, -hip_pitch)
         # plant.GetJointByName("thigh_hl_to_knee_hl_j").set_angle(context, knee)
-        plant.SetFreeBodyPose(context, plant.GetBodyByName("body"), RigidTransform([0, 0, 0.270375]))   #0.252875  +0.0175
+        plant.SetFreeBodyPose(context, plant.GetBodyByName("body"), RigidTransform([0, 0, 0.27]))   #0.252875  +0.0175
 
     def get_stance_schedule(self):
         return self.in_stance

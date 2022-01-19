@@ -19,7 +19,7 @@ from pydrake.all import (
     MathematicalProgram, Solve, eq, AutoDiffXd, ExtractGradient, SnoptSolver,
     InitializeAutoDiff, ExtractValue, ExtractGradient,
     AddUnitQuaternionConstraintOnPlant, PositionConstraint, OrientationConstraint, QuaternionEulerIntegrationConstraint,
-    PiecewiseQuaternionSlerp, Quaternion
+    PiecewiseQuaternionSlerp, Quaternion, InverseKinematics, RollPitchYaw
 )
 
 from meshcat.servers.zmqserver import start_zmq_server_as_subprocess
@@ -43,6 +43,22 @@ def gait_optimization(robot_ctor):
     robot.set_home(plant, plant_context)
     visualizer.load()
     diagram.Publish(context)
+
+    X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('body'))
+    print(RollPitchYaw(X_WF.rotation()).vector())
+    print(X_WF.translation())
+    X_WF = plant.CalcRelativeTransform(plant_context, plant.GetFrameByName('body'), plant.GetFrameByName('LF_FOOT'))
+    print(RollPitchYaw(X_WF.rotation()).vector())
+    print(X_WF.translation())
+    X_WF = plant.CalcRelativeTransform(plant_context, plant.GetFrameByName('body'), plant.GetFrameByName('RF_FOOT'))
+    print(RollPitchYaw(X_WF.rotation()).vector())
+    print(X_WF.translation())
+    X_WF = plant.CalcRelativeTransform(plant_context, plant.GetFrameByName('body'), plant.GetFrameByName('LH_FOOT'))
+    print(RollPitchYaw(X_WF.rotation()).vector())
+    print(X_WF.translation())
+    X_WF = plant.CalcRelativeTransform(plant_context, plant.GetFrameByName('body'), plant.GetFrameByName('RH_FOOT'))
+    print(RollPitchYaw(X_WF.rotation()).vector())
+    print(X_WF.translation())
 
 
     q0 = plant.GetPositions(plant_context)
@@ -76,10 +92,10 @@ def gait_optimization(robot_ctor):
 
     # Time steps
     h = prog.NewContinuousVariables(N-1, "h")
-    prog.AddBoundingBoxConstraint(T/N, T/N, h)
-    # prog.AddBoundingBoxConstraint(0.5*T/N, 2.0*T/N, h)
-    # prog.AddLinearConstraint(sum(h) >= .9*T)
-    # prog.AddLinearConstraint(sum(h) <= 1.1*T)
+    # prog.AddBoundingBoxConstraint(T/N, T/N, h)
+    prog.AddBoundingBoxConstraint(0.5*T/N, 2.0*T/N, h)
+    prog.AddLinearConstraint(sum(h) >= .9*T)
+    prog.AddLinearConstraint(sum(h) <= 1.1*T)
 
     # Create one context per timestep (to maximize cache hits)
     context = [plant.CreateDefaultContext() for i in range(N)]
@@ -339,10 +355,42 @@ def gait_optimization(robot_ctor):
     #set the initial guess
     init_from_file = False
     # init_from_file = True
+    init_from_SRBD = True
+    # init_from_SRBD = False
     tmpfolder = 'resources/'
     if init_from_file:
-        with open(tmpfolder +  'Planner_Cheetah_QEI/sol.pkl', 'rb' ) as file:
-            h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
+        if not init_from_SRBD:
+            with open(tmpfolder +  'Planner_Cheetah_QEI/sol.pkl', 'rb' ) as file:
+                h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
+        else:   
+            gait = robot.get_current_gait()
+            with open(tmpfolder +  'Planner_SRDB/' + gait + '_sol.pkl', 'rb' ) as file:
+                h_sol, q_floating_base_sol, v_floating_base_sol, normalized_contact_force_sol, foot_p_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
+
+            q_sol = np.zeros((19,len(h_sol)+1))
+            for n in range(len(h_sol)+1):
+                q_sol[:7,n] = q_floating_base_sol[:,n]
+
+
+                ik = InverseKinematics(plant, plant_context)
+                ik.AddPositionConstraint(body_frame, [0, 0, 0], plant.world_frame(), q_floating_base_sol[4:,n], q_floating_base_sol[4:,n])
+                ik.AddOrientationConstraint(body_frame, RotationMatrix(), plant.world_frame(), RotationMatrix(Quaternion(q_floating_base_sol[:4,n])), 0)
+                for i in range(robot.get_num_contacts()):
+                    ik.AddPositionConstraint(contact_frame[i], [0, 0, 0], plant.world_frame(), foot_p_sol[i][:,n], foot_p_sol[i][:,n])
+                prog_ik = ik.get_mutable_prog()
+                q_ik = ik.q()
+                prog_ik.AddQuadraticErrorCost(np.identity(len(q_ik)), q0, q_ik)
+                prog_ik.SetInitialGuess(q_ik, q0)
+                result_ik = Solve(ik.prog())
+                if not result_ik.is_success():
+                    print("IK failed!")
+                q_sol[7:,n] = result_ik.GetSolution(q_ik)[7:]
+
+            v_sol = np.zeros((18,len(h_sol)+1))
+            v_sol[:6,:] = v_floating_base_sol[:,:]
+            for n in range(N-1):
+                v_sol[6:,n] = (q_sol[7:,n+1]-q_sol[7:,n])/h_sol[n]
+    
 
     qf = np.array(q0)
     qf[4] = stride_length  #x
@@ -371,8 +419,11 @@ def gait_optimization(robot_ctor):
     w_delt = np.array([[0.],[0.],[0.]])
     # w_delt = np.array([[0.0001],[0.0001],[0.0001]])
     if init_from_file:
+        # print("h")
         prog.SetInitialGuess(h, h_sol)
         prog.SetInitialGuess(q, q_sol)
+        # for n in range(N-1):
+        #     prog.SetInitialGuess(v[:,n], (q_sol[:,n+1]-q_sol[:,n])/h_sol[n])
         prog.SetInitialGuess(v, v_sol)
         prog.SetInitialGuess(com, com_sol)
         prog.SetInitialGuess(comdot, comdot_sol)
@@ -494,8 +545,8 @@ minicheetah_running_trot = partial(MiniCheetah, gait="running_trot")
 minicheetah_rotary_gallop = partial(MiniCheetah, gait="rotary_gallop")
 minicheetah_bound = partial(MiniCheetah, gait="bound")
 
-gait_optimization(minicheetah_walking_trot)
-# gait_optimization(minicheetah_running_trot)
+# gait_optimization(minicheetah_walking_trot)
+gait_optimization(minicheetah_running_trot)
 # gait_optimization(minicheetah_rotary_gallop)
 # gait_optimization(minicheetah_bound)
 
