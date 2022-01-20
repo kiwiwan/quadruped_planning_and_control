@@ -64,6 +64,21 @@ def gait_optimization(robot_ctor):
     # print(plant.CalcCenterOfMassPositionInWorld(plant_context))
 
 
+    # body = plant.GetBodyByName("body")
+    # spatial_inertial = body.CalcSpatialInertiaInBodyFrame(plant_context)
+    # inertial_B = spatial_inertial.CalcRotationalInertia()
+    # inertial = spatial_inertial.get_unit_inertia()
+    # print(inertial.CopyToFullMatrix3())
+    # print(inertial1.CopyToFullMatrix3())
+    # X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('body'))
+    # inertial2 = inertial1.ReExpress(X_WF.rotation())
+    # print(inertial2.CopyToFullMatrix3())
+    # CalcRotationalInertia()
+    # return
+
+
+
+
     q0 = plant.GetPositions(plant_context)
     body_frame = plant.GetFrameByName(robot.get_body_name())
 
@@ -110,6 +125,7 @@ def gait_optimization(robot_ctor):
     nv = plant.num_velocities()
     q = prog.NewContinuousVariables(nq, N, "q")
     v = prog.NewContinuousVariables(nv, N, "v")
+    vdot = prog.NewContinuousVariables(nv, N, "vdot")
     q_view = PositionView(q)
     v_view = VelocityView(v)
     q0_view = PositionView(q0)
@@ -153,6 +169,7 @@ def gait_optimization(robot_ctor):
             partial(velocity_dynamics_constraint, context_index=n),
             lb=[0]*nv, ub=[0]*nv,
             vars=np.concatenate(([h[n]], q[:,n], v[:,n], q[:,n+1])))
+        prog.AddConstraint(eq(v[:,n+1], v[:,n] + h[n]*vdot[:,n]))
 
     # #add QuaternionEulerIntegrationConstraint
     # for n in range(N-1):
@@ -185,40 +202,31 @@ def gait_optimization(robot_ctor):
 
             prog.SetInitialGuess(normalized_contact_force[contact][2,n], 0.25*in_stance[contact,n])
 
-    # Center of mass variables and constraints
-    com = prog.NewContinuousVariables(3, N, "com")
-    comdot = prog.NewContinuousVariables(3, N, "comdot")
-    comddot = prog.NewContinuousVariables(3, N-1, "comddot")
+
+
+
     # Initial CoM x,y position == 0
-    prog.AddBoundingBoxConstraint(0, 0, com[:2,0])
+    prog.AddBoundingBoxConstraint(0, 0, q[4:6,0])
     # Initial CoM z vel == 0
-    prog.AddBoundingBoxConstraint(0, 0, comdot[2,0])
+    prog.AddBoundingBoxConstraint(0, 0, v[5,0])
     # CoM height
-    prog.AddBoundingBoxConstraint(robot.min_com_height(), np.inf, com[2,:])
+    prog.AddBoundingBoxConstraint(robot.min_com_height(), np.inf, q[6,:])
     # CoM x velocity >= 0
-    prog.AddBoundingBoxConstraint(0, np.inf, comdot[0,:])
+    prog.AddBoundingBoxConstraint(0, np.inf, v[3,:])
     # CoM final x position
     if is_laterally_symmetric:
-        prog.AddBoundingBoxConstraint(stride_length/2.0, stride_length/2.0, com[0,-1])
+        prog.AddBoundingBoxConstraint(stride_length/2.0, stride_length/2.0, q[4,-1])
     else:
-        prog.AddBoundingBoxConstraint(stride_length, stride_length, com[0,-1])
+        prog.AddBoundingBoxConstraint(stride_length, stride_length, q[4,-1])
     # CoM dynamics
     for n in range(N-1):
         # Note: The original matlab implementation used backwards Euler (here and throughout),
         # which is a little more consistent with the LCP contact models.
-        prog.AddConstraint(eq(com[:, n+1], com[:,n] + h[n]*comdot[:,n]))
-        prog.AddConstraint(eq(comdot[:, n+1], comdot[:,n] + h[n]*comddot[:,n]))
-        prog.AddLinearConstraint(eq(total_mass*comddot[:,n],
+        prog.AddLinearConstraint(eq(total_mass*vdot[3:,n],
             sum(max_contact_force*normalized_contact_force[i][:,n] for i in range(num_contacts)) + total_mass*gravity))
 
-    # Angular momentum (about the center of mass)
-    H = prog.NewContinuousVariables(3, N, "H")
-    Hdot = prog.NewContinuousVariables(3, N-1, "Hdot")
-    prog.SetInitialGuess(H, np.zeros((3, N)))
-    prog.SetInitialGuess(Hdot, np.zeros((3,N-1)))
-    
-    for n in range(N-1):
-        prog.AddConstraint(eq(H[:,n+1], H[:,n] + h[n]*Hdot[:,n]))
+
+
 
     
     foot_p = [prog.NewContinuousVariables(3, N, f"contact{contact}_foot_p") for contact in range(num_contacts)]
@@ -245,18 +253,20 @@ def gait_optimization(robot_ctor):
         # prog.AddCost(0.1*((foot_p[contact][0,1] - foot_nominal_stance[contact][0])**2))
     for n in range(N):
 
+
+
         # Hdot = sum_i cross(p_FootiW-com, contact_force_i)
-        if n < N-1:# and n > 0
-            active_contacts = np.where(in_stance[:,n])[0]
-            prog.AddConstraint(eq(Hdot[:,n],
-                sum(np.cross(foot_p[i][:,n] - com[:,n], max_contact_force*normalized_contact_force[i][:,n]) for i in active_contacts)))
+        # if n < N-1:# and n > 0
+            # active_contacts = np.where(in_stance[:,n])[0]
+            # prog.AddConstraint(eq(Hdot[:,n],
+            #     sum(np.cross(foot_p[i][:,n] - q[4:,n], max_contact_force*normalized_contact_force[i][:,n]) for i in active_contacts)))
 
 
         for contact in range(num_contacts):
             #TODO multiply R convert foot to com coordinate
             # Kinematic range constraints
-            prog.AddLinearConstraint(ge(foot_p[contact][:,n]-com[:,n], foot_nominal_stance[contact]-foot_box))
-            prog.AddLinearConstraint(le(foot_p[contact][:,n]-com[:,n], foot_nominal_stance[contact]+foot_box))
+            prog.AddLinearConstraint(ge(foot_p[contact][:,n]-q[4:,n], foot_nominal_stance[contact]-foot_box))
+            prog.AddLinearConstraint(le(foot_p[contact][:,n]-q[4:,n], foot_nominal_stance[contact]+foot_box))
             
             # prog.AddQuadraticErrorCost(np.diag(np.array([0.1, 0.1])), np.array([foot_nominal_stance[contact][1], 0.]), foot_p[contact][1:,n])
             prog.AddQuadraticCost(0.1*((foot_p[contact][2,n])**2))
@@ -290,27 +300,49 @@ def gait_optimization(robot_ctor):
                     prog.AddLinearConstraint(eq(foot_p[contact][:2,n], (foot_p[contact][:2,n+1]+foot_p[contact][:2,n-1])/2))
                     # prog.AddLinearConstraint(eq(foot_p[contact][:2,n] - com[:2,n], (foot_p[contact][:2,n+1] - com[:2,n+1] + foot_p[contact][:2,n-1] - com[:2,n-1])/2))
 
-                    
 
-    # com == CenterOfMass(q), H = SpatialMomentumInWorldAboutPoint(q, v, com)
-    # Make a new autodiff context for this constraint (to maximize cache hits)
-    com_constraint_context = [ad_plant.CreateDefaultContext() for i in range(N)]
-    def com_constraint(vars, context_index):
-        qv, com, H = np.split(vars, [nq+nv, nq+nv+3])
+    
+    dynamics_constraint_context = [ad_plant.CreateDefaultContext() for i in range(N)]
+    def rotation_dynamics_constraint(vars, context_index, active_contacts):
+        q, v, vdot, normalized_contact_force, foot_p = np.split(vars, [nq, nq+nv, nq+2*nv, nq+2*nv+num_contacts*3])
+
+        contact_force = max_contact_force*(normalized_contact_force.reshape(3, num_contacts, order='F'))
+        foot_p = foot_p.reshape(3, num_contacts, order='F')
         if isinstance(vars[0], AutoDiffXd):
-            if not autoDiffArrayEqual(qv, ad_plant.GetPositionsAndVelocities(com_constraint_context[context_index])):
-                ad_plant.SetPositionsAndVelocities(com_constraint_context[context_index], qv)
-            com_q = ad_plant.CalcCenterOfMassPositionInWorld(com_constraint_context[context_index])
-            H_qv = ad_plant.CalcSpatialMomentumInWorldAboutPoint(com_constraint_context[context_index], com).rotational()
+            #set plant pos and vel
+            if not autoDiffArrayEqual(q, ad_plant.GetPositions(dynamics_constraint_context[context_index])):
+                ad_plant.SetPositions(dynamics_constraint_context[context_index], q)
+
+            eval_plant = ad_plant
+            eval_plant_context = dynamics_constraint_context[context_index]
         else:
-            if not np.array_equal(qv, plant.GetPositionsAndVelocities(context[context_index])):
-                plant.SetPositionsAndVelocities(context[context_index], qv)
-            com_q = plant.CalcCenterOfMassPositionInWorld(context[context_index])
-            H_qv = plant.CalcSpatialMomentumInWorldAboutPoint(context[context_index], com).rotational()
-        return np.concatenate((com_q - com, H_qv - H))
-    for n in range(N):
-        prog.AddConstraint(partial(com_constraint, context_index=n),
-            lb=np.zeros(6), ub=np.zeros(6), vars=np.concatenate((q[:,n], v[:,n], com[:,n], H[:,n])))
+            if not np.array_equal(q, plant.GetPositions(context[context_index])):
+                plant.SetPositions(context[context_index], q)
+
+            eval_plant = plant
+            eval_plant_context = context[context_index]
+
+        body = eval_plant.GetBodyByName("body")
+        spatial_inertial = body.CalcSpatialInertiaInBodyFrame(eval_plant_context)
+        inertial_B = spatial_inertial.CalcRotationalInertia()
+        X_WF = eval_plant.CalcRelativeTransform(eval_plant_context, eval_plant.world_frame(), eval_plant.GetFrameByName('body'))
+        inertial_W = inertial_B.ReExpress(X_WF.rotation())
+        torque_left = np.cross(v[:3],inertial_W.CopyToFullMatrix3().dot(v[:3])) + inertial_W.CopyToFullMatrix3().dot(vdot[:3])
+        
+        torque = np.zeros(3, dtype='object')
+        for contact in active_contacts:
+            torque += np.cross(foot_p[:,contact] - q[4:], contact_force[:,contact])
+
+        return torque_left - torque 
+
+    for n in range(N-1):
+        active_contacts = np.where(in_stance[:,n])[0]
+
+        Fn = np.concatenate([normalized_contact_force[i][:,n] for i in range(num_contacts)])
+        foot_pn = np.concatenate([foot_p[i][:,n] for i in range(num_contacts)])
+        prog.AddConstraint(partial(rotation_dynamics_constraint, context_index=n, active_contacts=active_contacts),
+            lb=np.zeros(3), ub=np.zeros(3), vars=np.concatenate((q[:,n], v[:,n], vdot[:,n], Fn, foot_pn)))
+
 
 
     # # TODO: Add collision constraints
@@ -324,30 +356,30 @@ def gait_optimization(robot_ctor):
         # for n in range(N):
 
 
-        prog.AddLinearEqualityConstraint(foot_p[0][0,0] - com[0,0] == foot_p[1][0,-1] - com[0,-1])
-        prog.AddLinearEqualityConstraint(foot_p[0][1,0] - com[1,0] == -foot_p[1][1,-1] + com[1,-1])
-        # prog.AddLinearEqualityConstraint(foot_p[0][2,0] - com[2,0] == foot_p[1][2,-1] - com[2,-1])
+        prog.AddLinearEqualityConstraint(foot_p[0][0,0] - q[4,0] == foot_p[1][0,-1] - q[4,-1])
+        prog.AddLinearEqualityConstraint(foot_p[0][1,0] - q[5,0] == -foot_p[1][1,-1] + q[5,-1])
+        # prog.AddLinearEqualityConstraint(foot_p[0][2,0] - q[6,0] == foot_p[1][2,-1] - q[6,-1])
         prog.AddLinearEqualityConstraint(foot_p[0][2,0]== foot_p[1][2,-1])
 
-        prog.AddLinearEqualityConstraint(foot_p[2][0,0] - com[0,0] == foot_p[3][0,-1] - com[0,-1])
-        prog.AddLinearEqualityConstraint(foot_p[2][1,0] - com[1,0] == -foot_p[3][1,-1] + com[1,-1])
-        # prog.AddLinearEqualityConstraint(foot_p[2][2,0] - com[2,0] == foot_p[3][2,-1] - com[2,-1])
+        prog.AddLinearEqualityConstraint(foot_p[2][0,0] - q[4,0] == foot_p[3][0,-1] - q[4,-1])
+        prog.AddLinearEqualityConstraint(foot_p[2][1,0] - q[5,0] == -foot_p[3][1,-1] + q[5,-1])
+        # prog.AddLinearEqualityConstraint(foot_p[2][2,0] - q[6,0] == foot_p[3][2,-1] - q[6,-1])
         prog.AddLinearEqualityConstraint(foot_p[2][2,0]== foot_p[3][2,-1])
 
-        prog.AddLinearEqualityConstraint(foot_p[0][0,-1] - com[0,-1] == foot_p[1][0,0] - com[0,0])
-        prog.AddLinearEqualityConstraint(foot_p[0][1,-1] - com[1,-1] == -foot_p[1][1,0] + com[1,0])
-        # prog.AddLinearEqualityConstraint(foot_p[0][2,-1] - com[2,-1] == foot_p[1][2,0] - com[2,0])
+        prog.AddLinearEqualityConstraint(foot_p[0][0,-1] - q[4,-1] == foot_p[1][0,0] - q[4,0])
+        prog.AddLinearEqualityConstraint(foot_p[0][1,-1] - q[5,-1] == -foot_p[1][1,0] + q[5,0])
+        # prog.AddLinearEqualityConstraint(foot_p[0][2,-1] - q[6,-1] == foot_p[1][2,0] - q[6,0])
         prog.AddLinearEqualityConstraint(foot_p[0][2,-1]== foot_p[1][2,0])
 
-        prog.AddLinearEqualityConstraint(foot_p[2][0,-1] - com[0,-1] == foot_p[3][0,0] - com[0,0])
-        prog.AddLinearEqualityConstraint(foot_p[2][1,-1] - com[1,-1] == -foot_p[3][1,0] + com[1,0])
-        # prog.AddLinearEqualityConstraint(foot_p[2][2,-1] - com[2,-1] == foot_p[3][2,0] - com[2,0])
+        prog.AddLinearEqualityConstraint(foot_p[2][0,-1] - q[4,-1] == foot_p[3][0,0] - q[4,0])
+        prog.AddLinearEqualityConstraint(foot_p[2][1,-1] - q[5,-1] == -foot_p[3][1,0] + q[5,0])
+        # prog.AddLinearEqualityConstraint(foot_p[2][2,-1] - q[6,-1] == foot_p[3][2,0] - q[6,0])
         prog.AddLinearEqualityConstraint(foot_p[2][2,-1]== foot_p[3][2,0])
 
         # CoM velocity
-        prog.AddLinearEqualityConstraint(comdot[0,0] == comdot[0,-1])
-        prog.AddLinearEqualityConstraint(comdot[1,0] == -comdot[1,-1])
-        prog.AddLinearEqualityConstraint(comdot[2,0] == comdot[2,-1])
+        prog.AddLinearEqualityConstraint(v[3,0] == v[3,-1])
+        prog.AddLinearEqualityConstraint(v[4,0] == -v[4,-1])
+        prog.AddLinearEqualityConstraint(v[5,0] == v[5,-1])
     else:
         # Everything except body_x is periodic
         q_selector = robot.get_periodic_view()
@@ -355,9 +387,9 @@ def gait_optimization(robot_ctor):
         prog.AddLinearConstraint(eq(v[:,0], v[:,-1]))
 
         for contact in range(num_contacts):
-            prog.AddLinearEqualityConstraint(foot_p[contact][0,0] - com[0,0] == foot_p[contact][0,-1] - com[0,-1])
-            prog.AddLinearEqualityConstraint(foot_p[contact][1,0] - com[1,0] == foot_p[contact][1,-1] - com[1,-1])
-            prog.AddLinearEqualityConstraint(foot_p[contact][2,0] - com[2,0] == foot_p[contact][2,-1] - com[2,-1])
+            prog.AddLinearEqualityConstraint(foot_p[contact][0,0] - q[4,0] == foot_p[contact][0,-1] - q[4,-1])
+            prog.AddLinearEqualityConstraint(foot_p[contact][1,0] - q[5,0] == foot_p[contact][1,-1] - q[5,-1])
+            prog.AddLinearEqualityConstraint(foot_p[contact][2,0] - q[6,0] == foot_p[contact][2,-1] - q[6,-1])
 
 
 
@@ -366,10 +398,11 @@ def gait_optimization(robot_ctor):
     # init_from_file = True
     tmpfolder = 'resources/'
     if init_from_file:
-        with open(tmpfolder +  'Planner_SRDB/sol.pkl', 'rb' ) as file:
+        with open(tmpfolder +  'Planner_SRDB1/sol.pkl', 'rb' ) as file:
             h_sol, q_sol, v_sol, normalized_contact_force_sol, foot_p_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
 
     qf = np.array(q0)
+    # CoM final x position
     if is_laterally_symmetric:
         qf[4] = stride_length/2.0
     else:
@@ -378,15 +411,10 @@ def gait_optimization(robot_ctor):
     q_quat_init = PiecewiseQuaternionSlerp([0, T], [Quaternion(q0[:4]), Quaternion(qf[:4])])
     v_v_init = q_pos_init.MakeDerivative()
     v_w_init = q_quat_init.MakeDerivative()
+    vdot_v_init = v_v_init.MakeDerivative()
+    vdot_w_init = v_w_init.MakeDerivative()
 
-    plant.SetPositions(plant_context, q0)
-    com_q0 = plant.CalcCenterOfMassPositionInWorld(plant_context)
-    plant.SetPositions(plant_context, qf)
-    com_qf = plant.CalcCenterOfMassPositionInWorld(plant_context)
-    com_init = PiecewisePolynomial.FirstOrderHold([0, T], np.vstack([com_q0, com_qf]).T)
-    comdot_init = com_init.MakeDerivative()
-    comddot_init = comdot_init.MakeDerivative()
-
+   
     w_delt = np.array([[0.],[0.],[0.]])
     # w_delt = np.array([[0.0000000000001],[0.0000000000001],[0.0000000000001]])
     # w_delt = np.array([[0.00001],[0.00001],[0.00001]])
@@ -394,11 +422,7 @@ def gait_optimization(robot_ctor):
         prog.SetInitialGuess(h, h_sol)
         prog.SetInitialGuess(q, q_sol)
         prog.SetInitialGuess(v, v_sol)
-        prog.SetInitialGuess(com, com_sol)
-        prog.SetInitialGuess(comdot, comdot_sol)
-        prog.SetInitialGuess(comddot, comddot_sol)
-        prog.SetInitialGuess(H, H_sol)
-        prog.SetInitialGuess(Hdot, Hdot_sol)
+        prog.SetInitialGuess(vdot, vdot_sol)
         for contact in range(num_contacts):
             prog.SetInitialGuess(normalized_contact_force[contact], normalized_contact_force_sol[contact])
             prog.SetInitialGuess(foot_p[contact], foot_p_sol[contact])
@@ -406,15 +430,12 @@ def gait_optimization(robot_ctor):
         for n in range(N):
             prog.SetInitialGuess(q[:,n], np.array([np.hstack((Quaternion(q_quat_init.value(n*T/(N-1))).wxyz(), q_pos_init.value(n*T/(N-1)).flatten()))]).T)
             prog.SetInitialGuess(v[:,n], np.vstack((v_w_init.value(n*T/(N-1))+w_delt, v_v_init.value(n*T/(N-1)))))
+            prog.SetInitialGuess(vdot[:,n], np.vstack((vdot_w_init.value(n*T/(N-1)), vdot_v_init.value(n*T/(N-1)))))
 
-            prog.SetInitialGuess(com[:,n], com_init.value(n*T/(N-1)))
-            prog.SetInitialGuess(comdot[:,n], comdot_init.value(n*T/(N-1)))
-            if n != N-1:
-                prog.SetInitialGuess(comddot[:,n], comddot_init.value(n*T/(N-1)))
 
             for contact in range(num_contacts):
                 #Note: not consider Rotation of torso in world
-                prog.SetInitialGuess(foot_p[contact][:,n], (foot_nominal_stance[contact].reshape(3,1) + com_init.value(n*T/(N-1))))
+                prog.SetInitialGuess(foot_p[contact][:,n], (foot_nominal_stance[contact].reshape(3,1) + q_pos_init.value(n*T/(N-1))))
 
                 # prog.SetInitialGuess(h[n], T/(N-1))
 
@@ -449,20 +470,16 @@ def gait_optimization(robot_ctor):
     h_sol = result.GetSolution(h)
     q_sol = result.GetSolution(q)
     v_sol = result.GetSolution(v)
+    vdot_sol = result.GetSolution(vdot)
     normalized_contact_force_sol = [result.GetSolution(normalized_contact_force[contact]) for contact in range(num_contacts)]
     foot_p_sol = [result.GetSolution(foot_p[contact]) for contact in range(num_contacts)]
-    com_sol = result.GetSolution(com)
-    comdot_sol = result.GetSolution(comdot)
-    comddot_sol = result.GetSolution(comddot)
-    H_sol = result.GetSolution(H)
-    Hdot_sol = result.GetSolution(Hdot)
-    # if result.is_success():
-    #     with open(tmpfolder + 'Planner_SRDB/sol.pkl', 'wb') as file:
-    #         pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, foot_p_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
     if result.is_success():
-        gait = robot.get_current_gait()
-        with open(tmpfolder + 'Planner_SRDB/' + gait + '_sol.pkl', 'wb') as file:
-            pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, foot_p_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
+        with open(tmpfolder + 'Planner_SRDB/sol.pkl', 'wb') as file:
+            pickle.dump( [h_sol, q_sol, v_sol, vdot_sol, normalized_contact_force_sol, foot_p_sol], file )
+    # if result.is_success():
+    #     gait = robot.get_current_gait()
+    #     with open(tmpfolder + 'Planner_SRDB1/' + gait + '_sol.pkl', 'wb') as file:
+    #         pickle.dump( [h_sol, q_sol, v_sol, vdot_sol, normalized_contact_force_sol, foot_p_sol], file )
 
 
       
@@ -579,10 +596,10 @@ minicheetah_running_trot = partial(SRBD, gait="running_trot", add_ground=True)
 minicheetah_rotary_gallop = partial(SRBD, gait="rotary_gallop", add_ground=True)
 minicheetah_bound = partial(SRBD, gait="bound", add_ground=True)
 
-gait_optimization(minicheetah_walking_trot)
+# gait_optimization(minicheetah_walking_trot)
 # gait_optimization(minicheetah_running_trot)
 # gait_optimization(minicheetah_rotary_gallop)
-# gait_optimization(minicheetah_bound)
+gait_optimization(minicheetah_bound)
 
 # gait_optimization(partial(Atlas, simplified=True))
 

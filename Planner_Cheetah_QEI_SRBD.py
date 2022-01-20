@@ -19,7 +19,7 @@ from pydrake.all import (
     MathematicalProgram, Solve, eq, AutoDiffXd, ExtractGradient, SnoptSolver,
     InitializeAutoDiff, ExtractValue, ExtractGradient,
     AddUnitQuaternionConstraintOnPlant, PositionConstraint, OrientationConstraint, QuaternionEulerIntegrationConstraint,
-    PiecewiseQuaternionSlerp, Quaternion, InverseKinematics, RollPitchYaw
+    PiecewiseQuaternionSlerp, Quaternion, InverseKinematics, RollPitchYaw, ComPositionConstraint
 )
 
 from meshcat.servers.zmqserver import start_zmq_server_as_subprocess
@@ -44,21 +44,21 @@ def gait_optimization(robot_ctor):
     visualizer.load()
     diagram.Publish(context)
 
-    X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('body'))
-    print(RollPitchYaw(X_WF.rotation()).vector())
-    print(X_WF.translation())
-    X_WF = plant.CalcRelativeTransform(plant_context, plant.GetFrameByName('body'), plant.GetFrameByName('LF_FOOT'))
-    print(RollPitchYaw(X_WF.rotation()).vector())
-    print(X_WF.translation())
-    X_WF = plant.CalcRelativeTransform(plant_context, plant.GetFrameByName('body'), plant.GetFrameByName('RF_FOOT'))
-    print(RollPitchYaw(X_WF.rotation()).vector())
-    print(X_WF.translation())
-    X_WF = plant.CalcRelativeTransform(plant_context, plant.GetFrameByName('body'), plant.GetFrameByName('LH_FOOT'))
-    print(RollPitchYaw(X_WF.rotation()).vector())
-    print(X_WF.translation())
-    X_WF = plant.CalcRelativeTransform(plant_context, plant.GetFrameByName('body'), plant.GetFrameByName('RH_FOOT'))
-    print(RollPitchYaw(X_WF.rotation()).vector())
-    print(X_WF.translation())
+    # X_WF = plant.CalcRelativeTransform(plant_context, plant.world_frame(), plant.GetFrameByName('body'))
+    # print(RollPitchYaw(X_WF.rotation()).vector())
+    # print(X_WF.translation())
+    # X_WF = plant.CalcRelativeTransform(plant_context, plant.GetFrameByName('body'), plant.GetFrameByName('LF_FOOT'))
+    # print(RollPitchYaw(X_WF.rotation()).vector())
+    # print(X_WF.translation())
+    # X_WF = plant.CalcRelativeTransform(plant_context, plant.GetFrameByName('body'), plant.GetFrameByName('RF_FOOT'))
+    # print(RollPitchYaw(X_WF.rotation()).vector())
+    # print(X_WF.translation())
+    # X_WF = plant.CalcRelativeTransform(plant_context, plant.GetFrameByName('body'), plant.GetFrameByName('LH_FOOT'))
+    # print(RollPitchYaw(X_WF.rotation()).vector())
+    # print(X_WF.translation())
+    # X_WF = plant.CalcRelativeTransform(plant_context, plant.GetFrameByName('body'), plant.GetFrameByName('RH_FOOT'))
+    # print(RollPitchYaw(X_WF.rotation()).vector())
+    # print(X_WF.translation())
 
 
     q0 = plant.GetPositions(plant_context)
@@ -180,7 +180,7 @@ def gait_optimization(robot_ctor):
             # normal force >=0, normal_force == 0 if not in_stance
             prog.AddBoundingBoxConstraint(0.0, in_stance[contact,n], normalized_contact_force[contact][2,n])
 
-            prog.SetInitialGuess(normalized_contact_force[contact][2,n], 0.1*in_stance[contact,n])
+            prog.SetInitialGuess(normalized_contact_force[contact][2,n], 0.25*in_stance[contact,n])
 
     # Center of mass variables and constraints
     com = prog.NewContinuousVariables(3, N, "com")
@@ -353,8 +353,8 @@ def gait_optimization(robot_ctor):
 
 
     #set the initial guess
-    init_from_file = False
-    # init_from_file = True
+    # init_from_file = False
+    init_from_file = True
     init_from_SRBD = True
     # init_from_SRBD = False
     tmpfolder = 'resources/'
@@ -375,10 +375,12 @@ def gait_optimization(robot_ctor):
                 ik = InverseKinematics(plant, plant_context)
                 ik.AddPositionConstraint(body_frame, [0, 0, 0], plant.world_frame(), q_floating_base_sol[4:,n], q_floating_base_sol[4:,n])
                 ik.AddOrientationConstraint(body_frame, RotationMatrix(), plant.world_frame(), RotationMatrix(Quaternion(q_floating_base_sol[:4,n])), 0)
+                
                 for i in range(robot.get_num_contacts()):
                     ik.AddPositionConstraint(contact_frame[i], [0, 0, 0], plant.world_frame(), foot_p_sol[i][:,n], foot_p_sol[i][:,n])
                 prog_ik = ik.get_mutable_prog()
                 q_ik = ik.q()
+                # prog_ik.AddConstraint(ComPositionConstraint(plant, None, plant.world_frame(),plant_context), q_ik)
                 prog_ik.AddQuadraticErrorCost(np.identity(len(q_ik)), q0, q_ik)
                 prog_ik.SetInitialGuess(q_ik, q0)
                 result_ik = Solve(ik.prog())
@@ -388,12 +390,15 @@ def gait_optimization(robot_ctor):
 
             v_sol = np.zeros((18,len(h_sol)+1))
             v_sol[:6,:] = v_floating_base_sol[:,:]
-            for n in range(N-1):
-                v_sol[6:,n] = (q_sol[7:,n+1]-q_sol[7:,n])/h_sol[n]
+            # for n in range(N-1):
+            #     v_sol[6:,n+1] = (q_sol[7:,n+1]-q_sol[7:,n])/h_sol[n]
     
 
     qf = np.array(q0)
-    qf[4] = stride_length  #x
+    if is_laterally_symmetric:
+        qf[4] = stride_length/2.0
+    else:
+        qf[4] = stride_length
     # qf[8] = -0.5  #hip-pitch
     # qf[11] = -0.5  #hip-pitch
     # qf[14] = -0.5  #hip-pitch
@@ -422,9 +427,9 @@ def gait_optimization(robot_ctor):
         # print("h")
         prog.SetInitialGuess(h, h_sol)
         prog.SetInitialGuess(q, q_sol)
-        # for n in range(N-1):
-        #     prog.SetInitialGuess(v[:,n], (q_sol[:,n+1]-q_sol[:,n])/h_sol[n])
-        prog.SetInitialGuess(v, v_sol)
+        # # for n in range(N-1):
+        # #     prog.SetInitialGuess(v[:,n], np.vstack((w_delt, v_v_init.value(n*T/(N-1)))))
+        # prog.SetInitialGuess(v, v_sol)
         prog.SetInitialGuess(com, com_sol)
         prog.SetInitialGuess(comdot, comdot_sol)
         prog.SetInitialGuess(comddot, comddot_sol)
@@ -545,8 +550,8 @@ minicheetah_running_trot = partial(MiniCheetah, gait="running_trot")
 minicheetah_rotary_gallop = partial(MiniCheetah, gait="rotary_gallop")
 minicheetah_bound = partial(MiniCheetah, gait="bound")
 
-# gait_optimization(minicheetah_walking_trot)
-gait_optimization(minicheetah_running_trot)
+gait_optimization(minicheetah_walking_trot)
+# gait_optimization(minicheetah_running_trot)
 # gait_optimization(minicheetah_rotary_gallop)
 # gait_optimization(minicheetah_bound)
 

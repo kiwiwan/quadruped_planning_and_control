@@ -85,14 +85,14 @@ class SRBD(Robot):
         elif gait == 'walking_trot':
             self.N = 21
             self.in_stance = np.zeros((4, self.N))
-            self.in_stance[0, 1:11] = 1
-            self.in_stance[1, 8:self.N-1] = 1
-            self.in_stance[2, 8:self.N-1] = 1
-            self.in_stance[3, 1:11] = 1
+            self.in_stance[0, 0:11] = 1
+            self.in_stance[1, 8:self.N-0] = 1
+            self.in_stance[2, 8:self.N-0] = 1
+            self.in_stance[3, 0:11] = 1
             # self.speed = 1.1
             # self.stride_length = .55
             self.speed = 2.2
-            self.stride_length = .75
+            self.stride_length = .65
             self.is_laterally_symmetric = True
         elif gait == 'rotary_gallop':
             self.N = 41
