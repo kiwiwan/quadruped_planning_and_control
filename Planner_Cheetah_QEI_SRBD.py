@@ -350,8 +350,8 @@ def gait_optimization(robot_ctor):
 
 
     #set the initial guess
-    # init_from_file = False
-    init_from_file = True
+    init_from_file = False
+    # init_from_file = True
     init_from_SRBD = True
     # init_from_SRBD = False
     tmpfolder = 'resources/'
@@ -571,8 +571,8 @@ minicheetah_running_trot = partial(MiniCheetah, gait="running_trot")
 minicheetah_rotary_gallop = partial(MiniCheetah, gait="rotary_gallop")
 minicheetah_bound = partial(MiniCheetah, gait="bound")
 
-gait_optimization(minicheetah_walking_trot)
-# gait_optimization(minicheetah_running_trot)
+# gait_optimization(minicheetah_walking_trot)
+gait_optimization(minicheetah_running_trot)
 # gait_optimization(minicheetah_rotary_gallop)
 # gait_optimization(minicheetah_bound)
 

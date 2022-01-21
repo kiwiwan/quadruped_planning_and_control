@@ -76,10 +76,10 @@ def gait_optimization(robot_ctor):
 
     # Time steps
     h = prog.NewContinuousVariables(N-1, "h")
-    prog.AddBoundingBoxConstraint(T/N, T/N, h)
-    # prog.AddBoundingBoxConstraint(0.5*T/N, 2.0*T/N, h)
-    # prog.AddLinearConstraint(sum(h) >= .9*T)
-    # prog.AddLinearConstraint(sum(h) <= 1.1*T)
+    # prog.AddBoundingBoxConstraint(T/N, T/N, h)
+    prog.AddBoundingBoxConstraint(0.5*T/N, 2.0*T/N, h)
+    prog.AddLinearConstraint(sum(h) >= .9*T)
+    prog.AddLinearConstraint(sum(h) <= 1.1*T)
 
     # Create one context per timestep (to maximize cache hits)
     context = [plant.CreateDefaultContext() for i in range(N)]
@@ -191,6 +191,10 @@ def gait_optimization(robot_ctor):
         prog.AddConstraint(eq(comdot[:, n+1], comdot[:,n] + h[n]*comddot[:,n]))
         prog.AddConstraint(eq(total_mass*comddot[:,n],
             sum(max_contact_force*normalized_contact_force[i][:,n] for i in range(num_contacts)) + total_mass*gravity))
+
+        # prog.AddQuadraticErrorCost(np.diag(np.array([0.1, 0.1, 0.1])), [0]*3, comddot[:,n])
+        # for contact in range(num_contacts):
+        #     prog.AddQuadraticErrorCost(np.diag(np.array([0.0001, 0.0001, 0.0001])), [0]*3, normalized_contact_force[contact][:,n])
 
     # Angular momentum (about the center of mass)
     H = prog.NewContinuousVariables(3, N, "H")
@@ -345,7 +349,10 @@ def gait_optimization(robot_ctor):
             h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
 
     qf = np.array(q0)
-    qf[4] = stride_length  #x
+    if is_laterally_symmetric:
+        qf[4] = stride_length/2.0
+    else:
+        qf[4] = stride_length
     # qf[8] = -0.5  #hip-pitch
     # qf[11] = -0.5  #hip-pitch
     # qf[14] = -0.5  #hip-pitch
@@ -494,10 +501,10 @@ minicheetah_running_trot = partial(MiniCheetah, gait="running_trot")
 minicheetah_rotary_gallop = partial(MiniCheetah, gait="rotary_gallop")
 minicheetah_bound = partial(MiniCheetah, gait="bound")
 
-gait_optimization(minicheetah_walking_trot)
+# gait_optimization(minicheetah_walking_trot)
 # gait_optimization(minicheetah_running_trot)
 # gait_optimization(minicheetah_rotary_gallop)
-# gait_optimization(minicheetah_bound)
+gait_optimization(minicheetah_bound)
 
 # gait_optimization(partial(Atlas, simplified=True))
 

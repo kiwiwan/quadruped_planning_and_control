@@ -96,7 +96,7 @@ class MiniCheetah(Robot):
             # self.speed = 1.1
             # self.stride_length = .55
             self.speed = 2.2
-            self.stride_length = .65
+            self.stride_length = .6
             self.is_laterally_symmetric = True
         # elif gait == 'walking_trot':
         #     self.N = 41
@@ -191,7 +191,7 @@ class MiniCheetah(Robot):
         return 0.15  #0.125
 
     def get_position_cost(self):
-        q_cost = self.PositionView()([0.001]*self.nq)
+        q_cost = self.PositionView()([1]*self.nq)
         q_cost.body_x = 0
         q_cost.body_y = 0
         q_cost.body_qx = 0
@@ -205,7 +205,7 @@ class MiniCheetah(Robot):
         return q_cost
 
     def get_velocity_cost(self):
-        v_cost = self.VelocityView()([0.001]*self.nv)
+        v_cost = self.VelocityView()([1]*self.nv)
         v_cost.body_vx = 0
         v_cost.body_wx = 0
         v_cost.body_wy = 0
