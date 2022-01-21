@@ -473,13 +473,13 @@ def gait_optimization(robot_ctor):
     vdot_sol = result.GetSolution(vdot)
     normalized_contact_force_sol = [result.GetSolution(normalized_contact_force[contact]) for contact in range(num_contacts)]
     foot_p_sol = [result.GetSolution(foot_p[contact]) for contact in range(num_contacts)]
-    if result.is_success():
-        with open(tmpfolder + 'Planner_SRDB/sol.pkl', 'wb') as file:
-            pickle.dump( [h_sol, q_sol, v_sol, vdot_sol, normalized_contact_force_sol, foot_p_sol], file )
     # if result.is_success():
-    #     gait = robot.get_current_gait()
-    #     with open(tmpfolder + 'Planner_SRDB1/' + gait + '_sol.pkl', 'wb') as file:
+    #     with open(tmpfolder + 'Planner_SRDB1/sol.pkl', 'wb') as file:
     #         pickle.dump( [h_sol, q_sol, v_sol, vdot_sol, normalized_contact_force_sol, foot_p_sol], file )
+    if result.is_success():
+        gait = robot.get_current_gait()
+        with open(tmpfolder + 'Planner_SRDB1/' + gait + '_sol.pkl', 'wb') as file:
+            pickle.dump( [h_sol, q_sol, v_sol, vdot_sol, normalized_contact_force_sol, foot_p_sol], file )
 
 
       

@@ -65,8 +65,8 @@ class MiniCheetah(Robot):
             plant.set_penetration_allowance(1.0e-3)
             plant.set_stiction_tolerance(1.0e-3)
 
-        # super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh.urdf")
-        super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh_leg_less_mass.urdf")
+        super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh.urdf")
+        # super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh_leg_less_mass.urdf")
 
 
         
@@ -84,7 +84,7 @@ class MiniCheetah(Robot):
             # self.speed = 2.0            #0.95-0.55,1.2-0.75,1.5-0.85,1.5-1.15,1.5-1.65,2.0-1.65,2.5-1.65
             # self.stride_length = 1.65
             self.speed = 2.2
-            self.stride_length = 1.65
+            self.stride_length = 0.65
             self.is_laterally_symmetric = True
         elif gait == 'walking_trot':
             self.N = 21
@@ -127,8 +127,8 @@ class MiniCheetah(Robot):
             self.in_stance[1, 6:18] = 1
             self.in_stance[2, 21:32] = 1
             self.in_stance[3, 21:32] = 1
-            self.speed = 1.6        #0.65-0.65,1.65-1.2,2.0-1.65
-            self.stride_length = 0.65
+            self.speed = 2.2        #0.65-0.65,1.65-1.2,2.0-1.65
+            self.stride_length = 1.2
             self.check_self_collision = True
             # self.is_laterally_symmetric = True
         else:
@@ -191,7 +191,7 @@ class MiniCheetah(Robot):
         return 0.15  #0.125
 
     def get_position_cost(self):
-        q_cost = self.PositionView()([1]*self.nq)
+        q_cost = self.PositionView()([0.001]*self.nq)
         q_cost.body_x = 0
         q_cost.body_y = 0
         q_cost.body_qx = 0
@@ -205,7 +205,7 @@ class MiniCheetah(Robot):
         return q_cost
 
     def get_velocity_cost(self):
-        v_cost = self.VelocityView()([1]*self.nv)
+        v_cost = self.VelocityView()([0.001]*self.nv)
         v_cost.body_vx = 0
         v_cost.body_wx = 0
         v_cost.body_wy = 0
