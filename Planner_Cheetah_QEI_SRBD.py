@@ -93,6 +93,7 @@ def gait_optimization(robot_ctor):
     # Time steps
     h = prog.NewContinuousVariables(N-1, "h")
     prog.AddBoundingBoxConstraint(T/N, T/N, h)
+    # prog.AddBoundingBoxConstraint(0.95*T/N, 1.05*T/N, h)
     # prog.AddBoundingBoxConstraint(0.5*T/N, 2.0*T/N, h)
     # prog.AddLinearConstraint(sum(h) >= .9*T)
     # prog.AddLinearConstraint(sum(h) <= 1.1*T)
@@ -592,10 +593,10 @@ minicheetah_running_trot = partial(MiniCheetah, gait="running_trot")
 minicheetah_rotary_gallop = partial(MiniCheetah, gait="rotary_gallop")
 minicheetah_bound = partial(MiniCheetah, gait="bound")
 
-gait_optimization(minicheetah_walking_trot)
+# gait_optimization(minicheetah_walking_trot)
 # gait_optimization(minicheetah_running_trot)
 # gait_optimization(minicheetah_rotary_gallop)
-# gait_optimization(minicheetah_bound)
+gait_optimization(minicheetah_bound)
 
 # gait_optimization(partial(Atlas, simplified=True))
 

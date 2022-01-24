@@ -65,8 +65,8 @@ class MiniCheetah(Robot):
             plant.set_penetration_allowance(1.0e-3)
             plant.set_stiction_tolerance(1.0e-3)
 
-        # super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh.urdf")
-        super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh_leg_less_mass.urdf")
+        super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh.urdf")
+        # super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh_leg_less_mass.urdf")
 
 
         
@@ -213,7 +213,7 @@ class MiniCheetah(Robot):
     #     return v_cost
 
     def get_position_cost(self):
-        q_cost = self.PositionView()([0.000001]*self.nq)
+        q_cost = self.PositionView()([0.0000001]*self.nq)
         q_cost.body_x = 0
         q_cost.body_y = 0
         q_cost.body_z = 0
@@ -221,10 +221,10 @@ class MiniCheetah(Robot):
         q_cost.body_qy = 0
         q_cost.body_qz = 0
         q_cost.body_qw = 0
-        # q_cost.torso_to_abduct_fl_j = 5
-        # q_cost.torso_to_abduct_fr_j = 5
-        # q_cost.torso_to_abduct_hl_j = 5
-        # q_cost.torso_to_abduct_hr_j = 5
+        q_cost.torso_to_abduct_fl_j = 0.00001
+        q_cost.torso_to_abduct_fr_j = 0.00001
+        q_cost.torso_to_abduct_hl_j = 0.00001
+        q_cost.torso_to_abduct_hr_j = 0.00001
         return q_cost
 
     def get_velocity_cost(self):
