@@ -131,7 +131,6 @@ def gait_optimization(robot_ctor):
 
         # Running costs:
         prog.AddQuadraticErrorCost(np.diag(q_cost), q0, q[:,n])
-        # prog.AddQuadraticErrorCost(np.diag(np.array([0.001])), q0[6:7], q[6:7,n])
         prog.AddQuadraticErrorCost(np.diag(v_cost), [0]*nv, v[:,n])
 
     # Make a new autodiff context for this constraint (to maximize cache hits)
@@ -328,7 +327,7 @@ def gait_optimization(robot_ctor):
             J_WF_n = plant.CalcJacobianTranslationalVelocity(context[context_index+1], JacobianWrtVariable.kQDot,
                                                     frame, [0, 0, 0], plant.world_frame(), plant.world_frame())
             return InitializeAutoDiff(
-                p_WF - (p_WF_pre + p_WF_n)/2, J_WF @ ExtractGradient(q) - (J_WF_pre @ ExtractGradient(q_pre) + J_WF_n @ ExtractGradient(qn))/2)[:1]
+                p_WF - (p_WF_pre + p_WF_n)/2, J_WF @ ExtractGradient(q) - (J_WF_pre @ ExtractGradient(q_pre) + J_WF_n @ ExtractGradient(qn))/2)[:2]
         else:
             return p_WF - (p_WF_pre + p_WF_n)/2
     for i in range(robot.get_num_contacts()):
@@ -344,11 +343,11 @@ def gait_optimization(robot_ctor):
                                        lb=np.zeros(3), ub=np.zeros(3), vars=np.concatenate((q[:,n-1], q[:,n])))
             else:
                 min_clearance = 0.01
-                prog.AddConstraint(PositionConstraint(plant, plant.world_frame(), [-np.inf,-np.inf,min_clearance], [np.inf,np.inf,np.inf],contact_frame[i],[0,0,0],context[n]), q[:,n])
-                # if n > 0 and n < N - 1 and not in_stance[i, n]:
-                #     # feet should not move during stance.
-                #     prog.AddConstraint(partial(swing_constraint, context_index=n, frame=contact_frame[i]),
-                #                        lb=np.zeros(1), ub=np.zeros(1), vars=np.concatenate((q[:,n-1], q[:,n], q[:,n+1])))
+                prog.AddConstraint(PositionConstraint(plant, plant.world_frame(), [-np.inf,-np.inf,min_clearance], [np.inf,np.inf,3*min_clearance],contact_frame[i],[0,0,0],context[n]), q[:,n])
+                if n > 0 and n < N - 1 and not in_stance[i, n]:
+                    # feet should not move during stance.
+                    prog.AddConstraint(partial(swing_constraint, context_index=n, frame=contact_frame[i]),
+                                       lb=np.zeros(2), ub=np.zeros(2), vars=np.concatenate((q[:,n-1], q[:,n], q[:,n+1])))
             
 
     # Periodicity constraints
@@ -378,11 +377,11 @@ def gait_optimization(robot_ctor):
                 h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
         else:   
             gait = robot.get_current_gait()
-            with open(tmpfolder +  'Planner_SRDB/' + gait + '_sol.pkl', 'rb' ) as file:
-                h_sol, q_floating_base_sol, v_floating_base_sol, normalized_contact_force_sol, foot_p_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
+            # with open(tmpfolder +  'Planner_SRDB/' + gait + '_sol.pkl', 'rb' ) as file:
+            #     h_sol, q_floating_base_sol, v_floating_base_sol, normalized_contact_force_sol, foot_p_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
 
-            # with open(tmpfolder +  'Planner_SRDB1/' + gait + '_sol.pkl', 'rb' ) as file:
-            #     h_sol, q_floating_base_sol, v_floating_base_sol, vdot_floating_base_sol, normalized_contact_force_sol, foot_p_sol = pickle.load( file )
+            with open(tmpfolder +  'Planner_SRDB1/' + gait + '_sol.pkl', 'rb' ) as file:
+                h_sol, q_floating_base_sol, v_floating_base_sol, vdot_floating_base_sol, normalized_contact_force_sol, foot_p_sol = pickle.load( file )
 
 
             q_sol = np.zeros((19,len(h_sol)+1))
@@ -415,33 +414,34 @@ def gait_optimization(robot_ctor):
             # comdot_sol = v_floating_base_sol[3:,:]
             # comddot_sol = vdot_floating_base_sol[3:,:-1]
 
-            # com_sol = np.zeros((3, N))
-            # comdot_sol = np.zeros((3, N))
-            # comddot_sol = np.zeros((3, N-1))
-            # H_sol = np.zeros((3, N))
-            # Hdot_sol = np.zeros((3, N-1))
-            # for n in range(N):
-            #     plant.SetPositions(context[n], q_sol[:,n])
-            #     plant.SetVelocities(context[n], v_sol[:,n])
-            #     com_q = plant.CalcCenterOfMassPositionInWorld(context[n])
-            #     H_sol[:,n] = plant.CalcSpatialMomentumInWorldAboutPoint(context[n], com_q).rotational()
-            #     com_sol[:,n] = com_q
+            com_sol = np.zeros((3, N))
+            comdot_sol = np.zeros((3, N))
+            comddot_sol = np.zeros((3, N-1))
+            H_sol = np.zeros((3, N))
+            Hdot_sol = np.zeros((3, N-1))
+            for n in range(N):
+                plant.SetPositions(context[n], q_sol[:,n])
+                plant.SetVelocities(context[n], v_sol[:,n])
+                com_q = plant.CalcCenterOfMassPositionInWorld(context[n])
+                H_sol[:,n] = plant.CalcSpatialMomentumInWorldAboutPoint(context[n], com_q).rotational()
+                com_sol[:,n] = com_q
 
-            #     if n < N-1:
-            #         active_contacts = np.where(in_stance[:,n])[0]
-            #         torque = np.zeros(3)
-            #         for contact in active_contacts:
-            #             p_WF = plant.CalcPointsPositions(context[n], contact_frame[contact], [0,0,0], plant.world_frame())
-            #             torque += np.cross(p_WF.reshape(3) - com_q, max_contact_force*normalized_contact_force_sol[contact][:,n])
-            #         Hdot_sol[:,n] = torque
+                if n < N-1:
+                    active_contacts = np.where(in_stance[:,n])[0]
+                    torque = np.zeros(3)
+                    for contact in active_contacts:
+                        p_WF = plant.CalcPointsPositions(context[n], contact_frame[contact], [0,0,0], plant.world_frame())
+                        torque += np.cross(p_WF.reshape(3) - com_q, max_contact_force*normalized_contact_force_sol[contact][:,n])
+                    # Hdot_sol[:,n] = torque
            
             
             # for n in range(N-1):
             #     comddot_sol[:,n] = (sum(max_contact_force*normalized_contact_force_sol[i][:,n] for i in range(num_contacts)) + total_mass*gravity)/total_mass
-            # for n in range(N-1):
-            #     # Hdot_sol[:,n] = (H_sol[:,n+1]-H_sol[:,n])/h_sol[n]
-            #     comdot_sol[:,n+1] = (com_sol[:,n+1]-com_sol[:,n])/h_sol[n]
-            #     # comddot_sol[:,n] = (comdot_sol[:,n+1]-comdot_sol[:,n])/h_sol[n]
+            for n in range(N-1):
+                Hdot_sol[:,n] = (H_sol[:,n+1]-H_sol[:,n])/h_sol[n]
+                comdot_sol[:,n+1] = (com_sol[:,n+1]-com_sol[:,n])/h_sol[n]
+                comddot_sol[:,n] = (comdot_sol[:,n+1]-comdot_sol[:,n])/h_sol[n]
+
 
     qf = np.array(q0)
     if is_laterally_symmetric:
