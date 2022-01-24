@@ -88,14 +88,116 @@ def gait_optimization(robot_ctor):
     if is_laterally_symmetric:
         T = T / 2.0
 
+
+    #set the initial guess
+    # init_from_file = False
+    init_from_file = True
+    init_from_SRBD = True
+    # init_from_SRBD = False
+    tmpfolder = 'resources/'
+    if init_from_file:
+        if not init_from_SRBD:
+            with open(tmpfolder +  'Planner_Cheetah_QEI/sol.pkl', 'rb' ) as file:
+                h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
+        else:   
+            gait = robot.get_current_gait()
+            with open(tmpfolder +  'Planner_SRDB/' + gait + '_sol.pkl', 'rb' ) as file:
+                h_sol, q_floating_base_sol, v_floating_base_sol, normalized_contact_force_sol, foot_p_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
+
+            # with open(tmpfolder +  'Planner_SRDB1/' + gait + '_sol.pkl', 'rb' ) as file:
+            #     h_sol, q_floating_base_sol, v_floating_base_sol, vdot_floating_base_sol, normalized_contact_force_sol, foot_p_sol = pickle.load( file )
+
+
+            q_sol = np.zeros((19,len(h_sol)+1))
+            for n in range(len(h_sol)+1):
+                q_sol[:7,n] = q_floating_base_sol[:,n]
+
+
+                ik = InverseKinematics(plant, plant_context)
+                ik.AddPositionConstraint(body_frame, [0, 0, 0], plant.world_frame(), q_floating_base_sol[4:,n], q_floating_base_sol[4:,n])
+                ik.AddOrientationConstraint(body_frame, RotationMatrix(), plant.world_frame(), RotationMatrix(Quaternion(q_floating_base_sol[:4,n])), 0)
+                
+                for i in range(robot.get_num_contacts()):
+                    ik.AddPositionConstraint(contact_frame[i], [0, 0, 0], plant.world_frame(), foot_p_sol[i][:,n], foot_p_sol[i][:,n])
+                prog_ik = ik.get_mutable_prog()
+                q_ik = ik.q()
+                # prog_ik.AddConstraint(ComPositionConstraint(plant, None, plant.world_frame(),plant_context), q_ik)
+                prog_ik.AddQuadraticErrorCost(np.identity(len(q_ik)), q0, q_ik)
+                prog_ik.SetInitialGuess(q_ik, q0)
+                result_ik = Solve(ik.prog())
+                if not result_ik.is_success():
+                    print("IK failed!")
+                q_sol[7:,n] = result_ik.GetSolution(q_ik)[7:]
+
+            v_sol = np.zeros((18,len(h_sol)+1))
+            v_sol[:6,:] = v_floating_base_sol[:,:]
+            for n in range(N-1):
+                v_sol[6:,n+1] = (q_sol[7:,n+1]-q_sol[7:,n])/h_sol[n]
+
+            # com_sol = q_floating_base_sol[4:,:]
+            # comdot_sol = v_floating_base_sol[3:,:]
+            # comddot_sol = vdot_floating_base_sol[3:,:-1]
+
+            # com_sol = np.zeros((3, N))
+            # comdot_sol = np.zeros((3, N))
+            # comddot_sol = np.zeros((3, N-1))
+            # H_sol = np.zeros((3, N))
+            # Hdot_sol = np.zeros((3, N-1))
+            # for n in range(N):
+            #     plant.SetPositions(context[n], q_sol[:,n])
+            #     plant.SetVelocities(context[n], v_sol[:,n])
+            #     com_q = plant.CalcCenterOfMassPositionInWorld(context[n])
+            #     H_sol[:,n] = plant.CalcSpatialMomentumInWorldAboutPoint(context[n], com_q).rotational()
+            #     com_sol[:,n] = com_q
+
+            #     if n < N-1:
+            #         active_contacts = np.where(in_stance[:,n])[0]
+            #         torque = np.zeros(3)
+            #         for contact in active_contacts:
+            #             p_WF = plant.CalcPointsPositions(context[n], contact_frame[contact], [0,0,0], plant.world_frame())
+            #             torque += np.cross(p_WF.reshape(3) - com_q, max_contact_force*normalized_contact_force_sol[contact][:,n])
+            #         Hdot_sol[:,n] = torque
+           
+            
+            # for n in range(N-1):
+            #     comddot_sol[:,n] = (sum(max_contact_force*normalized_contact_force_sol[i][:,n] for i in range(num_contacts)) + total_mass*gravity)/total_mass
+            # for n in range(N-1):
+            #     # Hdot_sol[:,n] = (H_sol[:,n+1]-H_sol[:,n])/h_sol[n]
+            #     comdot_sol[:,n+1] = (com_sol[:,n+1]-com_sol[:,n])/h_sol[n]
+            #     # comddot_sol[:,n] = (comdot_sol[:,n+1]-comdot_sol[:,n])/h_sol[n]
+
+    qf = np.array(q0)
+    if is_laterally_symmetric:
+        qf[4] = stride_length/2.0
+    else:
+        qf[4] = stride_length
+
+    q_pos_init = PiecewisePolynomial.FirstOrderHold([0, T], np.vstack([q0[4:], qf[4:]]).T)
+    q_quat_init = PiecewiseQuaternionSlerp([0, T], [Quaternion(q0[:4]), Quaternion(qf[:4])])
+    v_v_init = q_pos_init.MakeDerivative()
+    v_w_init = q_quat_init.MakeDerivative()
+
+    plant.SetPositions(plant_context, q0)
+    com_q0 = plant.CalcCenterOfMassPositionInWorld(plant_context)
+    plant.SetPositions(plant_context, qf)
+    com_qf = plant.CalcCenterOfMassPositionInWorld(plant_context)
+    com_init = PiecewisePolynomial.FirstOrderHold([0, T], np.vstack([com_q0, com_qf]).T)
+    comdot_init = com_init.MakeDerivative()
+    comddot_init = comdot_init.MakeDerivative()
+
+
+
+
+
+
     prog = MathematicalProgram()
 
     # Time steps
     h = prog.NewContinuousVariables(N-1, "h")
-    prog.AddBoundingBoxConstraint(T/N, T/N, h)
-    # prog.AddBoundingBoxConstraint(0.5*T/N, 2.0*T/N, h)
-    # prog.AddLinearConstraint(sum(h) >= .9*T)
-    # prog.AddLinearConstraint(sum(h) <= 1.1*T)
+    # prog.AddBoundingBoxConstraint(T/N, T/N, h)
+    prog.AddBoundingBoxConstraint(0.5*T/N, 2.0*T/N, h)
+    prog.AddLinearConstraint(sum(h) >= .9*T)
+    prog.AddLinearConstraint(sum(h) <= 1.1*T)
 
     # Create one context per timestep (to maximize cache hits)
     context = [plant.CreateDefaultContext() for i in range(N)]
@@ -129,9 +231,9 @@ def gait_optimization(robot_ctor):
         # prog.SetInitialGuess(q[:,n], q0)  # Solvers get stuck if the quaternion is initialized with all zeros.
 
         # Running costs:
-        prog.AddQuadraticErrorCost(np.diag(q_cost), q0, q[:,n])
-        # prog.AddQuadraticErrorCost(np.diag(np.array([0.001])), q0[6:7], q[6:7,n])
-        prog.AddQuadraticErrorCost(np.diag(v_cost), [0]*nv, v[:,n])
+        # prog.AddQuadraticErrorCost(np.diag(q_cost), q_sol[:,n], q[:,n])
+        prog.AddQuadraticErrorCost(np.diag(v_cost), v_sol[:,n], v[:,n])
+        # prog.AddQuadraticErrorCost(np.diag(q_cost), q0, q[:,n])
 
     # Make a new autodiff context for this constraint (to maximize cache hits)
     ad_velocity_dynamics_context = [ad_plant.CreateDefaultContext() for i in range(N)]
@@ -186,20 +288,6 @@ def gait_optimization(robot_ctor):
     com = prog.NewContinuousVariables(3, N, "com")
     comdot = prog.NewContinuousVariables(3, N, "comdot")
     comddot = prog.NewContinuousVariables(3, N-1, "comddot")
-    # # Initial CoM x,y position == 0
-    # prog.AddBoundingBoxConstraint(0, 0, com[:2,0])
-    # # Initial CoM z vel == 0
-    # prog.AddBoundingBoxConstraint(0, 0, comdot[2,0])
-    # # CoM height
-    # prog.AddBoundingBoxConstraint(robot.min_com_height(), np.inf, com[2,:])
-    # # CoM x velocity >= 0
-    # prog.AddBoundingBoxConstraint(0, np.inf, comdot[0,:])
-    # # CoM final x position
-    # if is_laterally_symmetric:
-    #     prog.AddBoundingBoxConstraint(stride_length/2.0, stride_length/2.0, com[0,-1])
-    # else:
-    #     prog.AddBoundingBoxConstraint(stride_length, stride_length, com[0,-1])
-
     # Initial CoM x,y position == 0
     prog.AddBoundingBoxConstraint(0, 0, q[4:5,0])
     # Initial CoM z vel == 0
@@ -213,7 +301,6 @@ def gait_optimization(robot_ctor):
         prog.AddBoundingBoxConstraint(stride_length/2.0, stride_length/2.0, q[4,-1])
     else:
         prog.AddBoundingBoxConstraint(stride_length, stride_length, q[4,-1])
-
     # CoM dynamics
     for n in range(N-1):
         # Note: The original matlab implementation used backwards Euler (here and throughout),
@@ -365,101 +452,7 @@ def gait_optimization(robot_ctor):
         prog.AddLinearConstraint(eq(v[:,0], v[:,-1]))
 
 
-    #set the initial guess
-    # init_from_file = False
-    init_from_file = True
-    init_from_SRBD = True
-    # init_from_SRBD = False
-    tmpfolder = 'resources/'
-    if init_from_file:
-        if not init_from_SRBD:
-            with open(tmpfolder +  'Planner_Cheetah_QEI/sol.pkl', 'rb' ) as file:
-                h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
-        else:   
-            gait = robot.get_current_gait()
-            with open(tmpfolder +  'Planner_SRDB/' + gait + '_sol.pkl', 'rb' ) as file:
-                h_sol, q_floating_base_sol, v_floating_base_sol, normalized_contact_force_sol, foot_p_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
-
-            # with open(tmpfolder +  'Planner_SRDB1/' + gait + '_sol.pkl', 'rb' ) as file:
-            #     h_sol, q_floating_base_sol, v_floating_base_sol, vdot_floating_base_sol, normalized_contact_force_sol, foot_p_sol = pickle.load( file )
-
-
-            q_sol = np.zeros((19,len(h_sol)+1))
-            for n in range(len(h_sol)+1):
-                q_sol[:7,n] = q_floating_base_sol[:,n]
-
-
-                ik = InverseKinematics(plant, plant_context)
-                ik.AddPositionConstraint(body_frame, [0, 0, 0], plant.world_frame(), q_floating_base_sol[4:,n], q_floating_base_sol[4:,n])
-                ik.AddOrientationConstraint(body_frame, RotationMatrix(), plant.world_frame(), RotationMatrix(Quaternion(q_floating_base_sol[:4,n])), 0)
-                
-                for i in range(robot.get_num_contacts()):
-                    ik.AddPositionConstraint(contact_frame[i], [0, 0, 0], plant.world_frame(), foot_p_sol[i][:,n], foot_p_sol[i][:,n])
-                prog_ik = ik.get_mutable_prog()
-                q_ik = ik.q()
-                # prog_ik.AddConstraint(ComPositionConstraint(plant, None, plant.world_frame(),plant_context), q_ik)
-                prog_ik.AddQuadraticErrorCost(np.identity(len(q_ik)), q0, q_ik)
-                prog_ik.SetInitialGuess(q_ik, q0)
-                result_ik = Solve(ik.prog())
-                if not result_ik.is_success():
-                    print("IK failed!")
-                q_sol[7:,n] = result_ik.GetSolution(q_ik)[7:]
-
-            v_sol = np.zeros((18,len(h_sol)+1))
-            v_sol[:6,:] = v_floating_base_sol[:,:]
-            for n in range(N-1):
-                v_sol[6:,n+1] = (q_sol[7:,n+1]-q_sol[7:,n])/h_sol[n]
-
-            # com_sol = q_floating_base_sol[4:,:]
-            # comdot_sol = v_floating_base_sol[3:,:]
-            # comddot_sol = vdot_floating_base_sol[3:,:-1]
-
-            # com_sol = np.zeros((3, N))
-            # comdot_sol = np.zeros((3, N))
-            # comddot_sol = np.zeros((3, N-1))
-            # H_sol = np.zeros((3, N))
-            # Hdot_sol = np.zeros((3, N-1))
-            # for n in range(N):
-            #     plant.SetPositions(context[n], q_sol[:,n])
-            #     plant.SetVelocities(context[n], v_sol[:,n])
-            #     com_q = plant.CalcCenterOfMassPositionInWorld(context[n])
-            #     H_sol[:,n] = plant.CalcSpatialMomentumInWorldAboutPoint(context[n], com_q).rotational()
-            #     com_sol[:,n] = com_q
-
-            #     if n < N-1:
-            #         active_contacts = np.where(in_stance[:,n])[0]
-            #         torque = np.zeros(3)
-            #         for contact in active_contacts:
-            #             p_WF = plant.CalcPointsPositions(context[n], contact_frame[contact], [0,0,0], plant.world_frame())
-            #             torque += np.cross(p_WF.reshape(3) - com_q, max_contact_force*normalized_contact_force_sol[contact][:,n])
-            #         Hdot_sol[:,n] = torque
-           
-            
-            # for n in range(N-1):
-            #     comddot_sol[:,n] = (sum(max_contact_force*normalized_contact_force_sol[i][:,n] for i in range(num_contacts)) + total_mass*gravity)/total_mass
-            # for n in range(N-1):
-            #     # Hdot_sol[:,n] = (H_sol[:,n+1]-H_sol[:,n])/h_sol[n]
-            #     comdot_sol[:,n+1] = (com_sol[:,n+1]-com_sol[:,n])/h_sol[n]
-            #     # comddot_sol[:,n] = (comdot_sol[:,n+1]-comdot_sol[:,n])/h_sol[n]
-
-    qf = np.array(q0)
-    if is_laterally_symmetric:
-        qf[4] = stride_length/2.0
-    else:
-        qf[4] = stride_length
-
-    q_pos_init = PiecewisePolynomial.FirstOrderHold([0, T], np.vstack([q0[4:], qf[4:]]).T)
-    q_quat_init = PiecewiseQuaternionSlerp([0, T], [Quaternion(q0[:4]), Quaternion(qf[:4])])
-    v_v_init = q_pos_init.MakeDerivative()
-    v_w_init = q_quat_init.MakeDerivative()
-
-    plant.SetPositions(plant_context, q0)
-    com_q0 = plant.CalcCenterOfMassPositionInWorld(plant_context)
-    plant.SetPositions(plant_context, qf)
-    com_qf = plant.CalcCenterOfMassPositionInWorld(plant_context)
-    com_init = PiecewisePolynomial.FirstOrderHold([0, T], np.vstack([com_q0, com_qf]).T)
-    comdot_init = com_init.MakeDerivative()
-    comddot_init = comdot_init.MakeDerivative()
+   
 
     w_delt = np.array([[0.],[0.],[0.]])
     # w_delt = np.array([[0.0001],[0.0001],[0.0001]])
@@ -478,11 +471,6 @@ def gait_optimization(robot_ctor):
         for contact in range(num_contacts):
             prog.SetInitialGuess(normalized_contact_force[contact], normalized_contact_force_sol[contact])
         
-        # for n in range(N):
-        #     if n != N-1:
-        #         prog.SetInitialGuess(com[:,n], com_init.value(n*T/(N-1)))
-        #         prog.SetInitialGuess(comdot[:,n], comdot_init.value(n*T/(N-1)))
-        #         prog.SetInitialGuess(comddot[:,n], comddot_init.value(n*T/(N-1)))
         
     else:
         prog.SetInitialGuess(H, np.zeros((3, N)))

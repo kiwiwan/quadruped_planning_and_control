@@ -92,7 +92,7 @@ class SRBD(Robot):
             # self.speed = 1.1
             # self.stride_length = .55
             self.speed = 2.2
-            self.stride_length = .65
+            self.stride_length = .6
             self.is_laterally_symmetric = True
         elif gait == 'rotary_gallop':
             self.N = 41

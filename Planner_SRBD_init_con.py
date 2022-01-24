@@ -125,9 +125,9 @@ def gait_optimization(robot_ctor):
 
 
 
-    stride_length = 0 #3.0
-    speed = 1.5
-    T = 1 #stride_length / speed
+    stride_length = 0.4 #3.0
+    speed = 0.4
+    T = stride_length / speed
 
    
 
@@ -186,7 +186,7 @@ def gait_optimization(robot_ctor):
 
         # Running costs:
         prog.AddQuadraticErrorCost(np.diag(q_cost), q0, q[:,n])
-        prog.AddQuadraticErrorCost(np.diag(v_cost), [0]*nv, v[:,n])
+        # prog.AddQuadraticErrorCost(np.diag(v_cost), [0]*nv, v[:,n])
 
     # Make a new autodiff context for this constraint (to maximize cache hits)
     ad_velocity_dynamics_context = [ad_plant.CreateDefaultContext() for i in range(N)]
@@ -236,7 +236,7 @@ def gait_optimization(robot_ctor):
             # normal force >=0, normal_force == 0 if not in_stance
             prog.AddBoundingBoxConstraint(0.0, in_stance[contact,n], normalized_contact_force[contact][2,n])
 
-            prog.SetInitialGuess(normalized_contact_force[contact][2,n], 0.1*in_stance[contact,n])
+            prog.SetInitialGuess(normalized_contact_force[contact][2,n], 0.25*in_stance[contact,n])
 
     # Center of mass variables and constraints
     com = prog.NewContinuousVariables(3, N, "com")
@@ -281,8 +281,7 @@ def gait_optimization(robot_ctor):
                                     [xf_nominal_stance, -y_nominal_stance,  z_nominal_stance],
                                     [-xh_nominal_stance,  y_nominal_stance,  z_nominal_stance], 
                                     [-xh_nominal_stance, -y_nominal_stance,  z_nominal_stance]])
-    # foot_box = np.array([0.15, 0.1, 0.1]) 
-    foot_box = np.array([0.15, 0.1, 0.1])
+    foot_box = np.array([1.5*0.15, 0.1, 0.1])
 
     foot_nominal_stance_in_world = np.array(foot_nominal_stance)
     for contact in range(num_contacts):
@@ -292,23 +291,39 @@ def gait_optimization(robot_ctor):
         foot_nominal_stance_end_in_world[contact][0] = foot_nominal_stance_in_world[contact][0] + stride_length
     for contact in range(num_contacts):
         prog.AddBoundingBoxConstraint(foot_nominal_stance_in_world[contact], foot_nominal_stance_in_world[contact], foot_p[contact][:,0])
-        prog.AddBoundingBoxConstraint(foot_nominal_stance_end_in_world[contact], foot_nominal_stance_end_in_world[contact], foot_p[contact][:,N-1])
+        # prog.AddBoundingBoxConstraint(foot_nominal_stance_end_in_world[contact], foot_nominal_stance_end_in_world[contact], foot_p[contact][:,N-1])
 
-    w = 0.5
+
+    # for contact in range(num_contacts):
+    #     if not in_stance[contact, 0]:
+    #         # prog.AddBoundingBoxConstraint(foot_nominal_stance[contact][0]-0.1*abs(foot_nominal_stance[contact][0]), foot_nominal_stance[contact][0]+0.1*abs(foot_nominal_stance[contact][0]), foot_p[contact][0,0])
+    #         prog.AddBoundingBoxConstraint(foot_nominal_stance[contact][1]-0.1*abs(foot_nominal_stance[contact][1]), foot_nominal_stance[contact][1]+0.1*abs(foot_nominal_stance[contact][1]), foot_p[contact][1,0])
+
+    # for contact in range(num_contacts):
+    #     prog.AddCost(0.1*((foot_p[contact][0,0] - foot_nominal_stance[contact][0])**2))
+    #     # prog.AddCost(0.1*((foot_p[contact][0,1] - foot_nominal_stance[contact][0])**2))
+
     for n in range(N):
 
-        active_contacts = np.where(in_stance[:,n])[0]
         # Hdot = sum_i cross(p_FootiW-com, contact_force_i)
-        if n < N-1:
+        if n < N-1 and n > 0:# 
+            active_contacts = np.where(in_stance[:,n])[0]
             prog.AddConstraint(eq(Hdot[:,n],
-                sum(np.cross(foot_p[i][:,n+1] - com[:,n+1], max_contact_force*normalized_contact_force[i][:,n]) for i in active_contacts)))
+                sum(np.cross(foot_p[i][:,n] - com[:,n], max_contact_force*normalized_contact_force[i][:,n]) for i in active_contacts)))
 
 
         for contact in range(num_contacts):
             #TODO multiply R convert foot to com coordinate
             # Kinematic range constraints
-            prog.AddLinearConstraint(ge(foot_p[contact][:,n]-com[:,n], foot_nominal_stance[contact]-foot_box))
-            prog.AddLinearConstraint(le(foot_p[contact][:,n]-com[:,n], foot_nominal_stance[contact]+foot_box))
+            if n < N-1 and n > 0:
+                prog.AddLinearConstraint(ge(foot_p[contact][:,n]-com[:,n], foot_nominal_stance[contact]-foot_box))
+                prog.AddLinearConstraint(le(foot_p[contact][:,n]-com[:,n], foot_nominal_stance[contact]+foot_box))
+            
+            # # prog.AddQuadraticErrorCost(np.diag(np.array([0.1, 0.1])), np.array([foot_nominal_stance[contact][1], 0.]), foot_p[contact][1:,n])
+            # prog.AddQuadraticCost(0.1*((foot_p[contact][2,n])**2))
+            # prog.AddCost(0.1*((foot_p[contact][1,n] - foot_nominal_stance[contact][1])**2))
+
+   
             if in_stance[contact, n]:
                 # Kinematic constraints
                 # foot should be on the ground (world position z=0)
@@ -316,24 +331,24 @@ def gait_optimization(robot_ctor):
                 if n > 0 and in_stance[contact, n-1]:
                     # feet should not move during stance.
                     prog.AddLinearConstraint(eq(foot_p[contact][:,n], foot_p[contact][:,n-1]))
-                # min_clearance1 = 0.01
+                
+                # #foot at nominal stance,not consider rotation
+                # prog.AddCost((foot_p[contact][:,n] - com[:,n] - foot_nominal_stance[contact]).dot(np.diag(np.array([0.00000001, 4, 0.00000001]) )).dot(foot_p[contact][:,n] - com[:,n] - foot_nominal_stance[contact]))
+                # prog.AddLinearConstraint(eq(foot_p[contact][1:2,n], foot_nominal_stance[contact][1:2]))
             else:
                 min_clearance = 0.01
                 prog.AddBoundingBoxConstraint(min_clearance, np.inf, foot_p[contact][2,n])#np.inf
 
-                # #not consider in com
-                # if n > 0:
-                #     prog.AddCost(w*((foot_p[contact][2,n] - foot_p[contact][2,n-1])*(foot_p[contact][2,n] - foot_p[contact][2,n-1])))
-               
-                # #not consider rotation
-                # prog.AddCost((foot_p[contact][:,n] - com[:,n] - foot_nominal_stance[contact]).dot(np.diag(np.array([0.0001, 0.05, 0.0001]) )).dot(foot_p[contact][:,n] - com[:,n] - foot_nominal_stance[contact]))
+                # #foot at nominal stance,not consider rotation
+                # prog.AddCost((foot_p[contact][:,n] - com[:,n] - foot_nominal_stance[contact]).dot(np.diag(np.array([0.000001, 0.05, 0.01]) )).dot(foot_p[contact][:,n] - com[:,n] - foot_nominal_stance[contact]))
+                
                 #foot in com can't change too quick
                 # if n > 0:
-                #     prog.AddCost((foot_p[contact][:,n] - com[:,n+1] - foot_p[contact][:,n-1] + com[:,n]).dot(np.diag(np.array([0.005, 0.05, 0.005]) )).dot(foot_p[contact][:,n] - com[:,n+1] - foot_p[contact][:,n-1] + com[:,n]))
+                #     prog.AddCost((foot_p[contact][:,n] - com[:,n] - foot_p[contact][:,n-1] + com[:,n-1]).dot(np.diag(np.array([0.00000001, 5, 0.0000001]) )).dot(foot_p[contact][:,n] - com[:,n] - foot_p[contact][:,n-1] + com[:,n-1]))
             
-                # if n > 0 and n < N - 1 and not in_stance[contact, n]:
-                #     # swing foot smooth constrain
-                #     prog.AddLinearConstraint(eq(foot_p[contact][:2,n], (foot_p[contact][:2,n+1]+foot_p[contact][:2,n-1])/2))
+                if n > 0 and n < N - 1 and not in_stance[contact, n]:
+                    # swing foot smooth constrain
+                    prog.AddLinearConstraint(eq(foot_p[contact][:2,n], (foot_p[contact][:2,n+1]+foot_p[contact][:2,n-1])/2))
 
 
 
@@ -458,7 +473,7 @@ def gait_optimization(robot_ctor):
     # for contact in range(num_contacts):
     #     print(np.array([foot_p_sol[contact][:,n]- com_sol[:,n+1] for n in range(N-1)]))
     
-    print(foot_p_sol)
+    # print(foot_p_sol)
     animate_trajectory(MiniCheetah, h_sol, q_sol, foot_p_sol,  stride_length)
 
     notify2.init("Planner.py")
@@ -567,10 +582,10 @@ minicheetah_running_trot = partial(SRBD, gait="running_trot", add_ground=True)
 minicheetah_rotary_gallop = partial(SRBD, gait="rotary_gallop", add_ground=True)
 minicheetah_bound = partial(SRBD, gait="bound", add_ground=True)
 
-# gait_optimization(minicheetah_walking_trot)
+gait_optimization(minicheetah_walking_trot)
 # gait_optimization(minicheetah_running_trot)
 # gait_optimization(minicheetah_rotary_gallop)
-gait_optimization(minicheetah_bound)
+# gait_optimization(minicheetah_bound)
 
 # gait_optimization(partial(Atlas, simplified=True))
 

@@ -65,8 +65,8 @@ class MiniCheetah(Robot):
             plant.set_penetration_allowance(1.0e-3)
             plant.set_stiction_tolerance(1.0e-3)
 
-        super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh.urdf")
-        # super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh_leg_less_mass.urdf")
+        # super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh.urdf")
+        super().__init__(plant, "robots/mini_cheetah/mini_cheetah_mesh_leg_less_mass.urdf")
 
 
         
@@ -190,27 +190,53 @@ class MiniCheetah(Robot):
     def min_com_height(self):
         return 0.15  #0.125
 
+    # def get_position_cost(self):
+    #     q_cost = self.PositionView()([1]*self.nq)
+    #     q_cost.body_x = 0
+    #     q_cost.body_y = 0
+    #     q_cost.body_qx = 0
+    #     q_cost.body_qy = 0
+    #     q_cost.body_qz = 0
+    #     q_cost.body_qw = 0
+    #     q_cost.torso_to_abduct_fl_j = 5
+    #     q_cost.torso_to_abduct_fr_j = 5
+    #     q_cost.torso_to_abduct_hl_j = 5
+    #     q_cost.torso_to_abduct_hr_j = 5
+    #     return q_cost
+
+    # def get_velocity_cost(self):
+    #     v_cost = self.VelocityView()([1]*self.nv)
+    #     v_cost.body_vx = 0
+    #     v_cost.body_wx = 0
+    #     v_cost.body_wy = 0
+    #     v_cost.body_wz = 0
+    #     return v_cost
+
     def get_position_cost(self):
-        q_cost = self.PositionView()([1]*self.nq)
+        q_cost = self.PositionView()([0.000001]*self.nq)
         q_cost.body_x = 0
         q_cost.body_y = 0
+        q_cost.body_z = 0
         q_cost.body_qx = 0
         q_cost.body_qy = 0
         q_cost.body_qz = 0
         q_cost.body_qw = 0
-        q_cost.torso_to_abduct_fl_j = 5
-        q_cost.torso_to_abduct_fr_j = 5
-        q_cost.torso_to_abduct_hl_j = 5
-        q_cost.torso_to_abduct_hr_j = 5
+        # q_cost.torso_to_abduct_fl_j = 5
+        # q_cost.torso_to_abduct_fr_j = 5
+        # q_cost.torso_to_abduct_hl_j = 5
+        # q_cost.torso_to_abduct_hr_j = 5
         return q_cost
 
     def get_velocity_cost(self):
-        v_cost = self.VelocityView()([1]*self.nv)
+        v_cost = self.VelocityView()([0.00000001]*self.nv)
         v_cost.body_vx = 0
+        v_cost.body_vy = 0
+        v_cost.body_vz = 0
         v_cost.body_wx = 0
         v_cost.body_wy = 0
         v_cost.body_wz = 0
         return v_cost
+
 
     def get_periodic_view(self):
         q_selector = self.PositionView()([True]*self.nq)
