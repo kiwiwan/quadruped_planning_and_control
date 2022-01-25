@@ -223,8 +223,34 @@ class MiniCheetah(Robot):
     #     v_cost.body_wy = 0
     #     v_cost.body_wz = 0
     #     return v_cost
-    
-#Centroid_new
+
+# #Centroid_new
+#     def get_position_cost(self):
+#         q_cost = self.PositionView()([1]*self.nq)
+#         q_cost.body_x = 0
+#         q_cost.body_y = 0
+#         q_cost.body_z = 0
+#         q_cost.body_qx = 0
+#         q_cost.body_qy = 0
+#         q_cost.body_qz = 0
+#         q_cost.body_qw = 0
+#         # q_cost.torso_to_abduct_fl_j = 5
+#         # q_cost.torso_to_abduct_fr_j = 5
+#         # q_cost.torso_to_abduct_hl_j = 5
+#         # q_cost.torso_to_abduct_hr_j = 5
+#         return q_cost
+
+#     def get_velocity_cost(self):
+#         v_cost = self.VelocityView()([0.00000001]*self.nv)
+#         v_cost.body_vx = 0
+#         v_cost.body_vy = 0
+#         v_cost.body_vz = 0
+#         v_cost.body_wx = 0
+#         v_cost.body_wy = 0
+#         v_cost.body_wz = 0
+#         return v_cost
+
+#Centroid_new+torque
     def get_position_cost(self):
         q_cost = self.PositionView()([1]*self.nq)
         q_cost.body_x = 0

@@ -189,6 +189,7 @@ class SRBD(Robot):
     def get_velocity_cost(self):
         v_cost = self.VelocityView()([1]*self.nv)
         v_cost.body_vx = 0
+        v_cost.body_vy = 0
         v_cost.body_wx = 0
         v_cost.body_wy = 0
         v_cost.body_wz = 0
