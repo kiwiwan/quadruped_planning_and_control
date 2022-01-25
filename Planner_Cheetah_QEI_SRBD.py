@@ -348,6 +348,51 @@ def gait_optimization(robot_ctor):
                     # feet should not move during stance.
                     prog.AddConstraint(partial(swing_constraint, context_index=n, frame=contact_frame[i]),
                                        lb=np.zeros(2), ub=np.zeros(2), vars=np.concatenate((q[:,n-1], q[:,n], q[:,n+1])))
+
+    torque_constraint_context = [ad_plant.CreateDefaultContext() for i in range(N)]
+    def torque_constraint(vars, context_index, active_contacts,contact_frame_names):
+        q, normalized_contact_force = np.split(vars, [nq])
+
+        contact_force = max_contact_force*(normalized_contact_force.reshape(3, num_contacts, order='F'))
+        if isinstance(vars[0], AutoDiffXd):
+            #set plant pos and vel
+            if not autoDiffArrayEqual(q, ad_plant.GetPositions(torque_constraint_context[context_index])):
+                ad_plant.SetPositions(torque_constraint_context[context_index], q)
+
+            eval_plant = ad_plant
+            eval_plant_context = torque_constraint_context[context_index]
+        else:
+            if not np.array_equal(q, plant.GetPositions(context[context_index])):
+                plant.SetPositions(context[context_index], q)
+
+            eval_plant = plant
+            eval_plant_context = context[context_index]
+
+        tauG = eval_plant.CalcGravityGeneralizedForces(eval_plant_context)
+        # Cv = eval_plant.CalcBiasTerm(eval_plant_context)
+        torque = np.zeros(nv, dtype='object')
+        for contact in active_contacts:
+            J_WF = eval_plant.CalcJacobianTranslationalVelocity(eval_plant_context, JacobianWrtVariable.kV,
+                                                    eval_plant.GetFrameByName(contact_frame_names[contact]), [0, 0, 0], eval_plant.world_frame(), eval_plant.world_frame())
+
+            torque += J_WF.T.dot(contact_force[:,contact])
+
+        torque += tauG
+        # torque -= Cv
+
+        return torque[6:] 
+
+    for n in range(N-1):
+        contact_frame_names = robot.get_contact_frame_names()
+        effort_limits = robot.get_effort_limits()
+        active_contacts = np.where(in_stance[:,n])[0]
+
+        Fn = np.concatenate([normalized_contact_force[i][:,n] for i in range(num_contacts)])
+        prog.AddConstraint(partial(torque_constraint, context_index=n, active_contacts=active_contacts, contact_frame_names=contact_frame_names),
+            lb=-np.array(effort_limits), ub=np.array(effort_limits), vars=np.concatenate((q[:,n], Fn)))
+
+
+
             
 
     # Periodicity constraints

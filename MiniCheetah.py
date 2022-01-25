@@ -144,6 +144,17 @@ class MiniCheetah(Robot):
             self.plant.GetFrameByName('LH_FOOT'),
             self.plant.GetFrameByName('RH_FOOT')]
 
+    def get_effort_limits(self):
+        return [joint_limit[1].effort for joint_limit in self.JOINT_LIMITS.items()]
+
+
+    def get_contact_frame_names(self):
+        return [
+            'LF_FOOT',
+            'RF_FOOT',
+            'LH_FOOT',
+            'RH_FOOT']
+
     def set_home(self, plant, context):
         hip_roll = .1;
         # hip_pitch = 1;
@@ -246,10 +257,10 @@ class MiniCheetah(Robot):
         q_cost.body_qy = 0
         q_cost.body_qz = 0
         q_cost.body_qw = 0
-        # q_cost.torso_to_abduct_fl_j = 1
-        # q_cost.torso_to_abduct_fr_j = 1
-        # q_cost.torso_to_abduct_hl_j = 1
-        # q_cost.torso_to_abduct_hr_j = 1
+        q_cost.torso_to_abduct_fl_j = 5
+        q_cost.torso_to_abduct_fr_j = 5
+        q_cost.torso_to_abduct_hl_j = 5
+        q_cost.torso_to_abduct_hr_j = 5
         return q_cost
 
     def get_velocity_cost(self):
