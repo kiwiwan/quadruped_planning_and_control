@@ -418,7 +418,7 @@ def gait_optimization(robot_ctor):
     tmpfolder = 'resources/'
     if init_from_file:
         if not init_from_SRBD:
-            with open(tmpfolder +  'Planner_Cheetah_QEI/sol.pkl', 'rb' ) as file:
+            with open(tmpfolder +  'Planner_Cheetah_QEI_SRBD/sol.pkl', 'rb' ) as file:
                 h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol = pickle.load( file )
         else:   
             gait = robot.get_current_gait()
@@ -578,9 +578,15 @@ def gait_optimization(robot_ctor):
     comddot_sol = result.GetSolution(comddot)
     H_sol = result.GetSolution(H)
     Hdot_sol = result.GetSolution(Hdot)
+    # if result.is_success():
+    #     with open(tmpfolder + 'Planner_Cheetah_QEI_SRBD/sol.pkl', 'wb') as file:
+    #         pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
+
     if result.is_success():
-        with open(tmpfolder + 'Planner_Cheetah_QEI/sol.pkl', 'wb') as file:
+        gait = robot.get_current_gait()
+        with open(tmpfolder + 'Planner_Cheetah_QEI_SRBD/' + gait + '_sol.pkl', 'wb') as file:
             pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
+
 
     # for n in range(len(h_sol)):
     #     plant.SetPositions(plant_context, q_sol[:,n+1])

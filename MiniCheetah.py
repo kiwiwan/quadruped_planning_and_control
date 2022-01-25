@@ -252,7 +252,7 @@ class MiniCheetah(Robot):
 
 #Centroid_new+torque
     def get_position_cost(self):
-        q_cost = self.PositionView()([1]*self.nq)
+        q_cost = self.PositionView()([0.5]*self.nq)
         q_cost.body_x = 0
         q_cost.body_y = 0
         q_cost.body_z = 0

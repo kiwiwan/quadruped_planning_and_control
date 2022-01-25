@@ -113,8 +113,8 @@ def gait_optimization(robot_ctor):
         # prog.SetInitialGuess(q[:,n], q0)  # Solvers get stuck if the quaternion is initialized with all zeros.
 
         # Running costs:
-        # prog.AddQuadraticErrorCost(np.diag(q_cost), q0, q[:,n])
-        # prog.AddQuadraticErrorCost(np.diag(v_cost), [0]*nv, v[:,n])
+        prog.AddQuadraticErrorCost(np.diag(q_cost), q0, q[:,n])
+        prog.AddQuadraticErrorCost(np.diag(v_cost), [0]*nv, v[:,n])
 
     # Make a new autodiff context for this constraint (to maximize cache hits)
     ad_velocity_dynamics_context = [ad_plant.CreateDefaultContext() for i in range(N)]
@@ -518,8 +518,13 @@ def gait_optimization(robot_ctor):
     comddot_sol = result.GetSolution(comddot)
     H_sol = result.GetSolution(H)
     Hdot_sol = result.GetSolution(Hdot)
+    # if result.is_success():
+    #     with open(tmpfolder + 'Planner_Cheetah_QEI/sol.pkl', 'wb') as file:
+    #         pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
+
     if result.is_success():
-        with open(tmpfolder + 'Planner_Cheetah_QEI/sol.pkl', 'wb') as file:
+        gait = robot.get_current_gait()
+        with open(tmpfolder + 'Planner_Cheetah_QEI/' + gait + '_sol.pkl', 'wb') as file:
             pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
 
     # for n in range(len(h_sol)):
@@ -580,8 +585,8 @@ minicheetah_bound = partial(MiniCheetah, gait="bound")
 
 # gait_optimization(minicheetah_walking_trot)
 # gait_optimization(minicheetah_running_trot)
-gait_optimization(minicheetah_rotary_gallop)
-# gait_optimization(minicheetah_bound)
+# gait_optimization(minicheetah_rotary_gallop)
+gait_optimization(minicheetah_bound)
 
 # gait_optimization(partial(Atlas, simplified=True))
 
