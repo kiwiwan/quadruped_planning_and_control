@@ -76,10 +76,10 @@ def gait_optimization(robot_ctor):
 
     # Time steps
     h = prog.NewContinuousVariables(N-1, "h")
-    # prog.AddBoundingBoxConstraint(T/N, T/N, h)
-    prog.AddBoundingBoxConstraint(0.5*T/N, 2.0*T/N, h)
-    prog.AddLinearConstraint(sum(h) >= .9*T)
-    prog.AddLinearConstraint(sum(h) <= 1.1*T)
+    prog.AddBoundingBoxConstraint(T/N, T/N, h)
+    # prog.AddBoundingBoxConstraint(0.5*T/N, 2.0*T/N, h)
+    # prog.AddLinearConstraint(sum(h) >= .9*T)
+    # prog.AddLinearConstraint(sum(h) <= 1.1*T)
 
     # Create one context per timestep (to maximize cache hits)
     context = [plant.CreateDefaultContext() for i in range(N)]
@@ -164,7 +164,7 @@ def gait_optimization(robot_ctor):
             # normal force >=0, normal_force == 0 if not in_stance
             prog.AddBoundingBoxConstraint(0.0, in_stance[contact,n], normalized_contact_force[contact][2,n])
 
-            prog.SetInitialGuess(normalized_contact_force[contact][2,n], 0.1*in_stance[contact,n])
+            
 
     # Center of mass variables and constraints
     com = prog.NewContinuousVariables(3, N, "com")
@@ -199,8 +199,6 @@ def gait_optimization(robot_ctor):
     # Angular momentum (about the center of mass)
     H = prog.NewContinuousVariables(3, N, "H")
     Hdot = prog.NewContinuousVariables(3, N-1, "Hdot")
-    prog.SetInitialGuess(H, np.zeros((3, N)))
-    prog.SetInitialGuess(Hdot, np.zeros((3,N-1)))
     # Hdot = sum_i cross(p_FootiW-com, contact_force_i)
     def angular_momentum_constraint(vars, context_index, active_contacts):
         q, com, Hdot, normalized_contact_force = np.split(vars, [nq, nq+3, nq+6])
@@ -302,7 +300,7 @@ def gait_optimization(robot_ctor):
             J_WF_n = plant.CalcJacobianTranslationalVelocity(context[context_index+1], JacobianWrtVariable.kQDot,
                                                     frame, [0, 0, 0], plant.world_frame(), plant.world_frame())
             return InitializeAutoDiff(
-                p_WF - (p_WF_pre + p_WF_n)/2, J_WF @ ExtractGradient(q) - (J_WF_pre @ ExtractGradient(q_pre) + J_WF_n @ ExtractGradient(qn))/2)[:1]
+                p_WF - (p_WF_pre + p_WF_n)/2, J_WF @ ExtractGradient(q) - (J_WF_pre @ ExtractGradient(q_pre) + J_WF_n @ ExtractGradient(qn))/2)[:2]
         else:
             return p_WF - (p_WF_pre + p_WF_n)/2
     for i in range(robot.get_num_contacts()):
@@ -318,12 +316,58 @@ def gait_optimization(robot_ctor):
                                        lb=np.zeros(3), ub=np.zeros(3), vars=np.concatenate((q[:,n-1], q[:,n])))
             else:
                 min_clearance = 0.01
-                prog.AddConstraint(PositionConstraint(plant, plant.world_frame(), [-np.inf,-np.inf,min_clearance], [np.inf,np.inf,np.inf],contact_frame[i],[0,0,0],context[n]), q[:,n])
-                # if n > 0 and n < N - 1 and not in_stance[i, n]:
-                #     # feet should not move during stance.
-                #     prog.AddConstraint(partial(swing_constraint, context_index=n, frame=contact_frame[i]),
-                #                        lb=np.zeros(1), ub=np.zeros(1), vars=np.concatenate((q[:,n-1], q[:,n], q[:,n+1])))
-            
+                prog.AddConstraint(PositionConstraint(plant, plant.world_frame(), [-np.inf,-np.inf,min_clearance], [np.inf,np.inf,3*min_clearance],contact_frame[i],[0,0,0],context[n]), q[:,n])
+                if n > 0 and n < N - 1 and not in_stance[i, n]:
+                    # feet should not move during stance.
+                    prog.AddConstraint(partial(swing_constraint, context_index=n, frame=contact_frame[i]),
+                                       lb=np.zeros(2), ub=np.zeros(2), vars=np.concatenate((q[:,n-1], q[:,n], q[:,n+1])))
+    
+
+        torque_constraint_context = [ad_plant.CreateDefaultContext() for i in range(N)]
+    def torque_constraint(vars, context_index, active_contacts,contact_frame_names):
+        q, normalized_contact_force = np.split(vars, [nq])
+
+        contact_force = max_contact_force*(normalized_contact_force.reshape(3, num_contacts, order='F'))
+        if isinstance(vars[0], AutoDiffXd):
+            #set plant pos and vel
+            if not autoDiffArrayEqual(q, ad_plant.GetPositions(torque_constraint_context[context_index])):
+                ad_plant.SetPositions(torque_constraint_context[context_index], q)
+
+            eval_plant = ad_plant
+            eval_plant_context = torque_constraint_context[context_index]
+        else:
+            if not np.array_equal(q, plant.GetPositions(context[context_index])):
+                plant.SetPositions(context[context_index], q)
+
+            eval_plant = plant
+            eval_plant_context = context[context_index]
+
+        tauG = eval_plant.CalcGravityGeneralizedForces(eval_plant_context)
+        # Cv = eval_plant.CalcBiasTerm(eval_plant_context)
+        torque = np.zeros(nv, dtype='object')
+        for contact in active_contacts:
+            J_WF = eval_plant.CalcJacobianTranslationalVelocity(eval_plant_context, JacobianWrtVariable.kV,
+                                                    eval_plant.GetFrameByName(contact_frame_names[contact]), [0, 0, 0], eval_plant.world_frame(), eval_plant.world_frame())
+
+            torque += J_WF.T.dot(contact_force[:,contact])
+
+        torque += tauG
+        # torque -= Cv
+
+        return torque[6:] 
+
+    for n in range(N-1):
+        contact_frame_names = robot.get_contact_frame_names()
+        effort_limits = robot.get_effort_limits()
+        active_contacts = np.where(in_stance[:,n])[0]
+
+        Fn = np.concatenate([normalized_contact_force[i][:,n] for i in range(num_contacts)])
+        # prog.AddConstraint(partial(torque_constraint, context_index=n, active_contacts=active_contacts, contact_frame_names=contact_frame_names),
+        #     lb=-np.array(effort_limits), ub=np.array(effort_limits), vars=np.concatenate((q[:,n], Fn)))
+
+
+
+
 
     # Periodicity constraints
     if is_laterally_symmetric:
@@ -353,15 +397,7 @@ def gait_optimization(robot_ctor):
         qf[4] = stride_length/2.0
     else:
         qf[4] = stride_length
-    # qf[8] = -0.5  #hip-pitch
-    # qf[11] = -0.5  #hip-pitch
-    # qf[14] = -0.5  #hip-pitch
-    # qf[17] = -0.5  #hip-pitch
 
-    # # q0[9] = -1.55  #knee-pitch
-    # # q0[12] = -1.55  #knee-pitch
-    # # q0[15] = -1.55  #knee-pitch
-    # # q0[18] = -1.55  #knee-pitch
     q_pos_init = PiecewisePolynomial.FirstOrderHold([0, T], np.vstack([q0[4:], qf[4:]]).T)
     q_quat_init = PiecewiseQuaternionSlerp([0, T], [Quaternion(q0[:4]), Quaternion(qf[:4])])
     v_v_init = q_pos_init.MakeDerivative()
@@ -389,25 +425,66 @@ def gait_optimization(robot_ctor):
         for contact in range(num_contacts):
             prog.SetInitialGuess(normalized_contact_force[contact], normalized_contact_force_sol[contact])
         
-        # q_sol[8,N-1] = 0.2  #hip-pitch
-        # q_sol[11,N-1] = 0.2  #hip-pitch
-        # q_sol[14,N-1] = 0.2  #hip-pitch
-        # q_sol[17,N-1] = 0.2  #hip-pitch
-        # prog.SetInitialGuess(q[:,N-1], q_sol[:,N-1])
-        # prog.AddBoundingBoxConstraint(q_sol[8,N-1], q_sol[8,N-1], q[8,N-1])
-        # prog.AddBoundingBoxConstraint(q_sol[11,N-1], q_sol[11,N-1], q[11,N-1])
-        # prog.AddBoundingBoxConstraint(q_sol[14,N-1], q_sol[14,N-1], q[14,N-1])
-        # prog.AddBoundingBoxConstraint(q_sol[17,N-1], q_sol[17,N-1], q[17,N-1])
     else:
-        for n in range(N):
-            prog.SetInitialGuess(q[:,n], np.array([np.hstack((Quaternion(q_quat_init.value(n*T/(N-1))).wxyz(), q_pos_init.value(n*T/(N-1)).flatten()))]).T)
-            prog.SetInitialGuess(v[:,n], np.vstack((v_w_init.value(n*T/(N-1))+w_delt, v_v_init.value(n*T/(N-1)))))
-            if n != N-1:
-                prog.SetInitialGuess(com[:,n], com_init.value(n*T/(N-1)))
-                prog.SetInitialGuess(comdot[:,n], comdot_init.value(n*T/(N-1)))
-                prog.SetInitialGuess(comddot[:,n], comddot_init.value(n*T/(N-1)))
+        prog.SetInitialGuess(normalized_contact_force[contact][2,n], 0.25*in_stance[contact,n])
+        # prog.SetInitialGuess(H, np.zeros((3, N)))
+        # prog.SetInitialGuess(Hdot, np.zeros((3,N-1)))
+        # for n in range(N):
+        #     prog.SetInitialGuess(q[:,n], np.array([np.hstack((Quaternion(q_quat_init.value(n*T/(N-1))).wxyz(), q_pos_init.value(n*T/(N-1)).flatten()))]).T)
+        #     prog.SetInitialGuess(v[:,n], np.vstack((v_w_init.value(n*T/(N-1))+w_delt, v_v_init.value(n*T/(N-1)))))
+            # if n != N-1:
+            #     prog.SetInitialGuess(com[:,n], com_init.value(n*T/(N-1)))
+            #     prog.SetInitialGuess(comdot[:,n], comdot_init.value(n*T/(N-1)))
+            #     prog.SetInitialGuess(comddot[:,n], comddot_init.value(n*T/(N-1)))
 
-                # prog.SetInitialGuess(h[n], T/(N-1))
+        h_sol = np.zeros(N-1)
+        q_sol = np.zeros((nq, N))
+        v_sol = np.zeros((nv, N))
+        com_sol = np.zeros((3, N))
+        comdot_sol = np.zeros((3, N))
+        comddot_sol = np.zeros((3, N-1))
+        H_sol = np.zeros((3, N))
+        Hdot_sol = np.zeros((3, N-1))
+        normalized_contact_force_sol = [np.zeros((3, N-1)) for contact in range(num_contacts)]
+        for n in range(N):
+            q_sol[:,n] = np.hstack((Quaternion(q_quat_init.value(n*T/(N-1))).wxyz(), q_pos_init.value(n*T/(N-1)).flatten()))
+            v_sol[:,n] = np.vstack((v_w_init.value(n*T/(N-1))+w_delt, v_v_init.value(n*T/(N-1)))).flatten()
+
+            if n != N-1:
+                h_sol[n] = T/N
+                for contact in range(num_contacts):
+                    normalized_contact_force_sol[contact][2,n] = 0.25*in_stance[contact,n]
+
+        for n in range(N):
+            plant.SetPositions(context[n], q_sol[:,n])
+            plant.SetVelocities(context[n], v_sol[:,n])
+            com_q = plant.CalcCenterOfMassPositionInWorld(context[n])
+            H_sol[:,n] = plant.CalcSpatialMomentumInWorldAboutPoint(context[n], com_q).rotational()
+            com_sol[:,n] = com_q
+
+            if n < N-1:
+                active_contacts = np.where(in_stance[:,n])[0]
+                torque = np.zeros(3)
+                for contact in active_contacts:
+                    p_WF = plant.CalcPointsPositions(context[n], contact_frame[contact], [0,0,0], plant.world_frame())
+                    torque += np.cross(p_WF.reshape(3) - com_q, max_contact_force*normalized_contact_force_sol[contact][:,n])
+                # Hdot_sol[:,n] = torque
+       
+        
+        # for n in range(N-1):
+        #     comddot_sol[:,n] = (sum(max_contact_force*normalized_contact_force_sol[i][:,n] for i in range(num_contacts)) + total_mass*gravity)/total_mass
+        for n in range(N-1):
+            Hdot_sol[:,n] = (H_sol[:,n+1]-H_sol[:,n])/h_sol[n]
+            comdot_sol[:,n+1] = (com_sol[:,n+1]-com_sol[:,n])/h_sol[n]
+            comddot_sol[:,n] = (comdot_sol[:,n+1]-comdot_sol[:,n])/h_sol[n]
+
+        prog.SetInitialGuess(q, q_sol)
+        prog.SetInitialGuess(v, v_sol)
+        prog.SetInitialGuess(com, com_sol)
+        prog.SetInitialGuess(comdot, comdot_sol)
+        prog.SetInitialGuess(comddot, comddot_sol)
+        prog.SetInitialGuess(H, H_sol)
+        prog.SetInitialGuess(Hdot, Hdot_sol)
 
     # TODO: Set solver parameters (mostly to make the worst case solve times less bad)
     snopt = SnoptSolver().solver_id()
