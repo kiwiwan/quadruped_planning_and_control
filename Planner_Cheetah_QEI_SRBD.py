@@ -130,8 +130,8 @@ def gait_optimization(robot_ctor):
         # prog.SetInitialGuess(q[:,n], q0)  # Solvers get stuck if the quaternion is initialized with all zeros.
 
         # Running costs:
-        prog.AddQuadraticErrorCost(np.diag(q_cost), q0, q[:,n])
-        prog.AddQuadraticErrorCost(np.diag(v_cost), [0]*nv, v[:,n])
+        # prog.AddQuadraticErrorCost(np.diag(q_cost), q0, q[:,n])
+        # prog.AddQuadraticErrorCost(np.diag(v_cost), [0]*nv, v[:,n])
 
     # Make a new autodiff context for this constraint (to maximize cache hits)
     ad_velocity_dynamics_context = [ad_plant.CreateDefaultContext() for i in range(N)]
@@ -388,8 +388,8 @@ def gait_optimization(robot_ctor):
         active_contacts = np.where(in_stance[:,n])[0]
 
         Fn = np.concatenate([normalized_contact_force[i][:,n] for i in range(num_contacts)])
-        prog.AddConstraint(partial(torque_constraint, context_index=n, active_contacts=active_contacts, contact_frame_names=contact_frame_names),
-            lb=-np.array(effort_limits), ub=np.array(effort_limits), vars=np.concatenate((q[:,n], Fn)))
+        # prog.AddConstraint(partial(torque_constraint, context_index=n, active_contacts=active_contacts, contact_frame_names=contact_frame_names),
+        #     lb=-np.array(effort_limits), ub=np.array(effort_limits), vars=np.concatenate((q[:,n], Fn)))
 
 
 
@@ -477,15 +477,15 @@ def gait_optimization(robot_ctor):
                     for contact in active_contacts:
                         p_WF = plant.CalcPointsPositions(context[n], contact_frame[contact], [0,0,0], plant.world_frame())
                         torque += np.cross(p_WF.reshape(3) - com_q, max_contact_force*normalized_contact_force_sol[contact][:,n])
-                    # Hdot_sol[:,n] = torque
+                    Hdot_sol[:,n] = torque
            
             
-            # for n in range(N-1):
-            #     comddot_sol[:,n] = (sum(max_contact_force*normalized_contact_force_sol[i][:,n] for i in range(num_contacts)) + total_mass*gravity)/total_mass
             for n in range(N-1):
-                Hdot_sol[:,n] = (H_sol[:,n+1]-H_sol[:,n])/h_sol[n]
+                comddot_sol[:,n] = (sum(max_contact_force*normalized_contact_force_sol[i][:,n] for i in range(num_contacts)) + total_mass*gravity)/total_mass
+            for n in range(N-1):
+                # Hdot_sol[:,n] = (H_sol[:,n+1]-H_sol[:,n])/h_sol[n]
                 comdot_sol[:,n+1] = (com_sol[:,n+1]-com_sol[:,n])/h_sol[n]
-                comddot_sol[:,n] = (comdot_sol[:,n+1]-comdot_sol[:,n])/h_sol[n]
+                # comddot_sol[:,n] = (comdot_sol[:,n+1]-comdot_sol[:,n])/h_sol[n]
 
 
     qf = np.array(q0)
@@ -646,8 +646,8 @@ minicheetah_bound = partial(MiniCheetah, gait="bound")
 
 # gait_optimization(minicheetah_walking_trot)
 # gait_optimization(minicheetah_running_trot)
-gait_optimization(minicheetah_rotary_gallop)
-# gait_optimization(minicheetah_bound)
+# gait_optimization(minicheetah_rotary_gallop)
+gait_optimization(minicheetah_bound)
 
 # gait_optimization(partial(Atlas, simplified=True))
 

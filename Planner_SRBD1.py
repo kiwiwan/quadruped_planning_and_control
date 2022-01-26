@@ -225,13 +225,26 @@ def gait_optimization(robot_ctor):
         prog.AddLinearConstraint(eq(total_mass*vdot[3:,n],
             sum(max_contact_force*normalized_contact_force[i][:,n] for i in range(num_contacts)) + total_mass*gravity))
 
-        # prog.AddQuadraticErrorCost(np.diag(np.array([0.1, 0.1, 0.1])), [0]*3, vdot[3:,n])
+        # prog.AddQuadraticErrorCost(np.diag(np.array([0, 0., 0.1])), [0]*3, vdot[3:,n])
+        # for contact in range(num_contacts):
+        #     prog.AddQuadraticErrorCost(np.diag(np.array([0., 1, 1])), [0]*3, normalized_contact_force[contact][:,n])
+
+        # prog.AddQuadraticErrorCost(np.diag(np.array([0, 0., 0.1])), [0]*3, vdot[3:,n])
+        # for contact in range(num_contacts):
+        #     prog.AddQuadraticErrorCost(np.diag(np.array([0., 1, 0.01])), [0]*3, normalized_contact_force[contact][:,n])
+
+
+        #4 gait to init Centroid ok,only gallop not so good
+        prog.AddQuadraticErrorCost(np.diag(np.array([0, 0., 0.1])), [0]*3, vdot[3:,n])
         for contact in range(num_contacts):
-            prog.AddQuadraticErrorCost(np.diag(np.array([0., 0., 1])), [0]*3, normalized_contact_force[contact][:,n])
+            prog.AddQuadraticErrorCost(np.diag(np.array([0., 0.1, 1])), [0]*3, normalized_contact_force[contact][:,n])
 
+        # # #4 gait to init Centroid ok
+        # prog.AddQuadraticErrorCost(np.diag(np.array([0, 0., 0.1])), [0]*3, vdot[3:,n])
+        # for contact in range(num_contacts):
+        #     prog.AddQuadraticErrorCost(np.diag(np.array([0., 0.1, 0.2])), [0]*3, normalized_contact_force[contact][:,n])
 
-
-
+       
     
     foot_p = [prog.NewContinuousVariables(3, N, f"contact{contact}_foot_p") for contact in range(num_contacts)]
     

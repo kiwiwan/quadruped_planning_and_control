@@ -179,7 +179,7 @@ class SRBD(Robot):
     def get_position_cost(self):
         q_cost = self.PositionView()([1]*self.nq)
         q_cost.body_x = 0
-        q_cost.body_y = 0
+        q_cost.body_y = 0.  #0.05
         q_cost.body_qx = 0
         q_cost.body_qy = 0
         q_cost.body_qz = 0
@@ -190,7 +190,7 @@ class SRBD(Robot):
         v_cost = self.VelocityView()([1]*self.nv)
         v_cost.body_vx = 0
         v_cost.body_vy = 0
-        v_cost.body_wx = 0
+        v_cost.body_wx = 0.   #0.1
         v_cost.body_wy = 0
         v_cost.body_wz = 0
         return v_cost
