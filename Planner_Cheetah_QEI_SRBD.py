@@ -388,8 +388,8 @@ def gait_optimization(robot_ctor):
         active_contacts = np.where(in_stance[:,n])[0]
 
         Fn = np.concatenate([normalized_contact_force[i][:,n] for i in range(num_contacts)])
-        # prog.AddConstraint(partial(torque_constraint, context_index=n, active_contacts=active_contacts, contact_frame_names=contact_frame_names),
-        #     lb=-np.array(effort_limits), ub=np.array(effort_limits), vars=np.concatenate((q[:,n], Fn)))
+        prog.AddConstraint(partial(torque_constraint, context_index=n, active_contacts=active_contacts, contact_frame_names=contact_frame_names),
+            lb=-np.array(effort_limits), ub=np.array(effort_limits), vars=np.concatenate((q[:,n], Fn)))
 
 
 
@@ -646,8 +646,8 @@ minicheetah_bound = partial(MiniCheetah, gait="bound")
 
 # gait_optimization(minicheetah_walking_trot)
 # gait_optimization(minicheetah_running_trot)
-# gait_optimization(minicheetah_rotary_gallop)
-gait_optimization(minicheetah_bound)
+gait_optimization(minicheetah_rotary_gallop)
+# gait_optimization(minicheetah_bound)
 
 # gait_optimization(partial(Atlas, simplified=True))
 

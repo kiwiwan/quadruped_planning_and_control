@@ -200,7 +200,7 @@ def gait_optimization(robot_ctor):
             # normal force >=0, normal_force == 0 if not in_stance
             prog.AddBoundingBoxConstraint(0.0, in_stance[contact,n], normalized_contact_force[contact][2,n])
 
-            prog.SetInitialGuess(normalized_contact_force[contact][2,n], 0.25*in_stance[contact,n])
+            prog.SetInitialGuess(normalized_contact_force[contact][2,n], 0.5*in_stance[contact,n])
 
 
 
@@ -226,8 +226,8 @@ def gait_optimization(robot_ctor):
             sum(max_contact_force*normalized_contact_force[i][:,n] for i in range(num_contacts)) + total_mass*gravity))
 
         # prog.AddQuadraticErrorCost(np.diag(np.array([0.1, 0.1, 0.1])), [0]*3, vdot[3:,n])
-        # for contact in range(num_contacts):
-        #     prog.AddQuadraticErrorCost(np.diag(np.array([0., 0., 0.0000001])), [0]*3, normalized_contact_force[contact][:,n])
+        for contact in range(num_contacts):
+            prog.AddQuadraticErrorCost(np.diag(np.array([0., 0., 1])), [0]*3, normalized_contact_force[contact][:,n])
 
 
 
@@ -246,7 +246,7 @@ def gait_optimization(robot_ctor):
                                     [-xh_nominal_stance,  y_nominal_stance,  z_nominal_stance], 
                                     [-xh_nominal_stance, -y_nominal_stance,  z_nominal_stance]])
     # foot_box = np.array([0.15, 0.1, 0.1]) 
-    foot_box = np.array([1.5*0.15, 0.1, 0.1])
+    foot_box = np.array([1.3*0.15, 0.1, 0.1])
     for contact in range(num_contacts):
         if not in_stance[contact, 0]:
             # prog.AddBoundingBoxConstraint(foot_nominal_stance[contact][0]-0.1*abs(foot_nominal_stance[contact][0]), foot_nominal_stance[contact][0]+0.1*abs(foot_nominal_stance[contact][0]), foot_p[contact][0,0])
@@ -290,7 +290,7 @@ def gait_optimization(robot_ctor):
                 # prog.AddLinearConstraint(eq(foot_p[contact][1:2,n], foot_nominal_stance[contact][1:2]))
             else:
                 min_clearance = 0.01
-                prog.AddBoundingBoxConstraint(min_clearance, np.inf, foot_p[contact][2,n])#np.inf
+                prog.AddBoundingBoxConstraint(min_clearance, 3*min_clearance, foot_p[contact][2,n])#np.inf
 
                 # #foot at nominal stance,not consider rotation
                 # prog.AddCost((foot_p[contact][:,n] - com[:,n] - foot_nominal_stance[contact]).dot(np.diag(np.array([0.000001, 0.05, 0.01]) )).dot(foot_p[contact][:,n] - com[:,n] - foot_nominal_stance[contact]))
