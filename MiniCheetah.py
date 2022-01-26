@@ -278,7 +278,7 @@ class MiniCheetah(Robot):
 
 #Centroid_SRBD_real
     def get_position_cost(self):
-        q_cost = self.PositionView()([10]*self.nq)
+        q_cost = self.PositionView()([1]*self.nq)
         q_cost.body_x = 0
         q_cost.body_y = 0
         q_cost.body_z = 0
@@ -286,10 +286,14 @@ class MiniCheetah(Robot):
         q_cost.body_qy = 0
         q_cost.body_qz = 0
         q_cost.body_qw = 0
-        q_cost.torso_to_abduct_fl_j = 1
-        q_cost.torso_to_abduct_fr_j = 1
-        q_cost.torso_to_abduct_hl_j = 1
-        q_cost.torso_to_abduct_hr_j = 1
+        # q_cost.torso_to_abduct_fl_j = 1
+        # q_cost.torso_to_abduct_fr_j = 1
+        # q_cost.torso_to_abduct_hl_j = 1
+        # q_cost.torso_to_abduct_hr_j = 1
+        # q_cost.abduct_fl_to_thigh_fl_j = 1
+        # q_cost.abduct_fr_to_thigh_fr_j = 1
+        # q_cost.abduct_hl_to_thigh_hl_j = 1
+        # q_cost.abduct_hr_to_thigh_hr_j = 1
         return q_cost
 
     def get_velocity_cost(self):
