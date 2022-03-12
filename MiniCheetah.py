@@ -49,7 +49,7 @@ class MiniCheetah(Robot):
 
     NUM_ACTUATED_DOF = 12
 
-    def __init__(self, plant, gait="walking_trot", add_ground=False):
+    def __init__(self, plant, gait="walking_trot", add_ground=True):
         if add_ground:
             color = np.array([.9, .9, .9, 1.0])
 
@@ -276,7 +276,7 @@ class MiniCheetah(Robot):
 #         v_cost.body_wz = 0
 #         return v_cost
 
-#Centroid_SRBD_real
+#Centroid_SRBD_real+torque  fast
     def get_position_cost(self):
         q_cost = self.PositionView()([0.5]*self.nq)  #0.5  0.001
         q_cost.body_x = 0
@@ -306,7 +306,7 @@ class MiniCheetah(Robot):
         v_cost.body_wz = 0
         return v_cost
 
-# #Centroid_SRBD_real+torque
+# #Centroid_SRBD_real+torque  slow
 #     def get_position_cost(self):
 #         q_cost = self.PositionView()([1]*self.nq)
 #         q_cost.body_x = 0

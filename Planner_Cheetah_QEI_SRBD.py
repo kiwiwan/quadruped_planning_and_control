@@ -582,10 +582,16 @@ def gait_optimization(robot_ctor):
     #     with open(tmpfolder + 'Planner_Cheetah_QEI_SRBD/sol.pkl', 'wb') as file:
     #         pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
 
-    if result.is_success():
-        gait = robot.get_current_gait()
-        with open(tmpfolder + 'Planner_Cheetah_QEI_SRBD/' + gait + '_sol.pkl', 'wb') as file:
-            pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
+    # if result.is_success():
+    #     gait = robot.get_current_gait()
+    #     with open(tmpfolder + 'Planner_Cheetah_QEI_SRBD/' + gait + '_sol.pkl', 'wb') as file:
+    #         pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
+
+
+    # if result.is_success():
+    #     gait = robot.get_current_gait()
+    #     with open(tmpfolder + 'Planner_Cheetah_QEI_SRBD/' + gait + '_torque'  + '_sol.pkl', 'wb') as file:
+    #         pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
 
 
     # for n in range(len(h_sol)):

@@ -362,8 +362,8 @@ def gait_optimization(robot_ctor):
         active_contacts = np.where(in_stance[:,n])[0]
 
         Fn = np.concatenate([normalized_contact_force[i][:,n] for i in range(num_contacts)])
-        prog.AddConstraint(partial(torque_constraint, context_index=n, active_contacts=active_contacts, contact_frame_names=contact_frame_names),
-            lb=-np.array(effort_limits), ub=np.array(effort_limits), vars=np.concatenate((q[:,n], Fn)))
+        # prog.AddConstraint(partial(torque_constraint, context_index=n, active_contacts=active_contacts, contact_frame_names=contact_frame_names),
+        #     lb=-np.array(effort_limits), ub=np.array(effort_limits), vars=np.concatenate((q[:,n], Fn)))
 
 
 
@@ -522,10 +522,10 @@ def gait_optimization(robot_ctor):
     #     with open(tmpfolder + 'Planner_Cheetah_QEI/sol.pkl', 'wb') as file:
     #         pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
 
-    if result.is_success():
-        gait = robot.get_current_gait()
-        with open(tmpfolder + 'Planner_Cheetah_QEI/' + gait + '_sol.pkl', 'wb') as file:
-            pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
+    # if result.is_success():
+    #     gait = robot.get_current_gait()
+    #     with open(tmpfolder + 'Planner_Cheetah_QEI/' + gait + '_torque' + '_sol.pkl', 'wb') as file:
+    #         pickle.dump( [h_sol, q_sol, v_sol, normalized_contact_force_sol, com_sol, comdot_sol, comddot_sol, H_sol, Hdot_sol], file )
 
     # for n in range(len(h_sol)):
     #     plant.SetPositions(plant_context, q_sol[:,n+1])
@@ -584,9 +584,9 @@ minicheetah_rotary_gallop = partial(MiniCheetah, gait="rotary_gallop")
 minicheetah_bound = partial(MiniCheetah, gait="bound")
 
 # gait_optimization(minicheetah_walking_trot)
-# gait_optimization(minicheetah_running_trot)
+gait_optimization(minicheetah_running_trot)
 # gait_optimization(minicheetah_rotary_gallop)
-gait_optimization(minicheetah_bound)
+# gait_optimization(minicheetah_bound)
 
 # gait_optimization(partial(Atlas, simplified=True))
 
